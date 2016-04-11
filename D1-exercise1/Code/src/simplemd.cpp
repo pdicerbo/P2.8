@@ -111,11 +111,15 @@ read_input(FILE*   fp,
     {
       sscanf(line.c_str(),"%s %d %s",buffer,&nconfig,buffer1);
       trajfile=buffer1;
+      if(MyID > 0)
+	trajfile = "/dev/null";
     }
     else if(keyword=="nstat")
     {
       sscanf(line.c_str(),"%s %d %s",buffer,&nstat,buffer1);
       statfile=buffer1;
+      if(MyID > 0)
+	statfile = "/dev/null";
     }
     else if(keyword=="wrapatoms")
     {
