@@ -7,33 +7,37 @@
 #include <vector>
 #include <cstdlib>
 
+#include "mpi.h"
+
 using namespace std;
 using namespace PLMD;
 
 
 class SimpleMD
 {
-
-int iv[32];
-int iy;
-int iset;
-double gset;
-bool write_positions_first;
-bool write_statistics_first;
-int write_statistics_last_time_reopened;
-FILE* write_statistics_fp;
-
+  
+  int iv[32];
+  int iy;
+  int iset;
+  double gset;
+  bool write_positions_first;
+  bool write_statistics_first;
+  int write_statistics_last_time_reopened;
+  FILE* write_statistics_fp;
+  MPI_Comm MyComm;
+  
 public:
-SimpleMD(){
-  for(int i=0;i<32;i++) iv[i]=0.0;
-  iy=0;
-  iset=0;
-  gset=0.0;
-  write_positions_first=true;
-  write_statistics_first=true;
-  write_statistics_last_time_reopened=0;
-  write_statistics_fp=NULL;
-}
+  SimpleMD(MPI_Comm comm){
+    for(int i=0;i<32;i++) iv[i]=0.0;
+    iy=0;
+    iset=0;
+    gset=0.0;
+    write_positions_first=true;
+    write_statistics_first=true;
+    write_statistics_last_time_reopened=0;
+    write_statistics_fp=NULL;
+    MyComm = comm;
+  }
 
 private:
 
@@ -73,10 +77,13 @@ read_input(FILE*   fp,
 
   string line;
 
+  int MyID;
+  MPI_Comm_rank( this->MyComm, &MyID);
+  
   line.resize(256);
   char buffer[256];
   char buffer1[256];
-
+  
   while(fgets(buffer,256,fp)){
     line=buffer;
     for(int i=0;i<line.length();++i) if(line[i]=='#' || line[i]=='\n') line.erase(i);
@@ -136,7 +143,7 @@ read_input(FILE*   fp,
   }
 
   if(inputfile.length()==0){
-      fprintf(stderr,"Specify input file\n");
+    fprintf(stderr,"Specify input file\n");
       exit(1);
   }
   if(outputfile.length()==0){
@@ -150,7 +157,7 @@ read_input(FILE*   fp,
   if(statfile.length()==0){
       fprintf(stderr,"Specify stat file\n");
       exit(1);
-  }
+  }  
 }
 
 void read_natoms(const string & inputfile,int & natoms){
@@ -350,7 +357,7 @@ void write_statistics(const string & statfile,const int istep,const double tstep
 
 
 public:
-int main(FILE*in,FILE*out){
+  int main(FILE*in,FILE*out){
   int            natoms;       // number of atoms
   vector<Vector> positions;    // atomic positions
   vector<Vector> velocities;   // velocities
@@ -391,6 +398,9 @@ int main(FILE*in,FILE*out){
 
   Random random;                 // random numbers stream
 
+  int MyID;
+  MPI_Comm_rank(this -> MyComm, &MyID);
+  
   read_input(in,temperature,tstep,friction,forcecutoff,
              listcutoff,nstep,nconfig,nstat,
              wrapatoms,inputfile,outputfile,trajfile,statfile,
@@ -510,12 +520,24 @@ int main(FILE*in,FILE*out){
 };
 
 int main(int argc,char*argv[]){
-  SimpleMD smd;
   FILE* in=stdin;
+
+  int MyID, NPES;
+  
+  MPI_Init(&argc, &argv);
+  SimpleMD smd(MPI_COMM_WORLD);
+
+  MPI_Comm_rank(MPI_COMM_WORLD, &MyID);
+  MPI_Comm_size(MPI_COMM_WORLD, &NPES);
+  // cout << "MyID = " << MyID << " of " << NPES << endl;
+
   if(argc>1) in=fopen(argv[1],"r");
   int r=smd.main(in,stdout);
   if(argc>1) fclose(in);
-  return r;
- }
+
+  MPI_Finalize();
+
+  return 0;
+}
 
 
