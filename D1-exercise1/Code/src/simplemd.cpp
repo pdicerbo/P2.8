@@ -409,25 +409,26 @@ public:
 // number of atoms is read from file inputfile
   read_natoms(inputfile,natoms);
 
-// write the parameters in output so they can be checked
-  fprintf(stdout,"%s %s\n","Starting configuration           :",inputfile.c_str());
-  fprintf(stdout,"%s %s\n","Final configuration              :",outputfile.c_str());
-  fprintf(stdout,"%s %d\n","Number of atoms                  :",natoms);
-  fprintf(stdout,"%s %f\n","Temperature                      :",temperature);
-  fprintf(stdout,"%s %f\n","Time step                        :",tstep);
-  fprintf(stdout,"%s %f\n","Friction                         :",friction);
-  fprintf(stdout,"%s %f\n","Cutoff for forces                :",forcecutoff);
-  fprintf(stdout,"%s %f\n","Cutoff for neighbour list        :",listcutoff);
-  fprintf(stdout,"%s %d\n","Number of steps                  :",nstep);
-  fprintf(stdout,"%s %d\n","Stride for trajectory            :",nconfig);
-  fprintf(stdout,"%s %s\n","Trajectory file                  :",trajfile.c_str());
-  fprintf(stdout,"%s %d\n","Stride for statistics            :",nstat);
-  fprintf(stdout,"%s %s\n","Statistics file                  :",statfile.c_str());
-  fprintf(stdout,"%s %d\n","Max average number of neighbours :",maxneighbour);
-  fprintf(stdout,"%s %d\n","Seed                             :",idum);
-  fprintf(stdout,"%s %s\n","Are atoms wrapped on output?     :",(wrapatoms?"T":"F"));
-
-// Setting the seed
+  if(MyID == 0){
+    // write the parameters in output so they can be checked
+    fprintf(stdout,"%s %s\n","Starting configuration           :",inputfile.c_str());
+    fprintf(stdout,"%s %s\n","Final configuration              :",outputfile.c_str());
+    fprintf(stdout,"%s %d\n","Number of atoms                  :",natoms);
+    fprintf(stdout,"%s %f\n","Temperature                      :",temperature);
+    fprintf(stdout,"%s %f\n","Time step                        :",tstep);
+    fprintf(stdout,"%s %f\n","Friction                         :",friction);
+    fprintf(stdout,"%s %f\n","Cutoff for forces                :",forcecutoff);
+    fprintf(stdout,"%s %f\n","Cutoff for neighbour list        :",listcutoff);
+    fprintf(stdout,"%s %d\n","Number of steps                  :",nstep);
+    fprintf(stdout,"%s %d\n","Stride for trajectory            :",nconfig);
+    fprintf(stdout,"%s %s\n","Trajectory file                  :",trajfile.c_str());
+    fprintf(stdout,"%s %d\n","Stride for statistics            :",nstat);
+    fprintf(stdout,"%s %s\n","Statistics file                  :",statfile.c_str());
+    fprintf(stdout,"%s %d\n","Max average number of neighbours :",maxneighbour);
+    fprintf(stdout,"%s %d\n","Seed                             :",idum);
+    fprintf(stdout,"%s %s\n","Are atoms wrapped on output?     :",(wrapatoms?"T":"F"));
+  }
+  // Setting the seed
   random.setSeed(idum);
 
 // allocation of dynamical arrays
@@ -455,7 +456,10 @@ public:
 
   int list_size=0;
   for(int i=0;i<list.size();i++) list_size+=list[i].size();
-  fprintf(stdout,"List size: %d\n",list_size);
+
+  if(MyID == 0)
+    fprintf(stdout,"List size: %d\n",list_size);
+  
   for(int iatom=0;iatom<natoms;++iatom) for(int k=0;k<3;++k) positions0[iatom][k]=positions[iatom][k];
 
 // forces are computed before starting md
@@ -486,10 +490,14 @@ public:
     if(recompute_list){
       compute_list(natoms,positions,cell,listcutoff,list);
       for(int iatom=0;iatom<natoms;++iatom) for(int k=0;k<3;++k) positions0[iatom][k]=positions[iatom][k];
-      fprintf(stdout,"Neighbour list recomputed at step %d\n",istep);
+
+      if(MyID == 0)
+	fprintf(stdout,"Neighbour list recomputed at step %d\n",istep);
       int list_size=0;
       for(int i=0;i<list.size();i++) list_size+=list[i].size();
-      fprintf(stdout,"List size: %d\n",list_size);
+
+      if(MyID == 0)
+	fprintf(stdout,"List size: %d\n",list_size);
     }
 
     compute_forces(natoms,positions,cell,forcecutoff,list,forces,engconf);
