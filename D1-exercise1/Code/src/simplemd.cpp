@@ -237,7 +237,7 @@ void compute_list(const int natoms,const vector<Vector>& positions,const double 
 }
 
 void compute_forces(const int natoms,const vector<Vector>& positions,const double cell[3],
-                    double forcecutoff,const vector<vector<int> >& list,vector<Vector>& forces,double & engconf)
+                    double forcecutoff,const vector<vector<int> >& list,vector<Vector>& forces,double & engconf, MPI_Comm comm)
 {
   Vector distance;        // distance of the two atoms
   Vector distance_pbc;    // minimum-image distance of the two atoms
@@ -245,30 +245,71 @@ void compute_forces(const int natoms,const vector<Vector>& positions,const doubl
   double forcecutoff2;    // squared force cutoff
   Vector f;               // force
   double engcorrection;   // energy necessary shift the potential avoiding discontinuities
+  int MyID, NPES;
 
+  MPI_Comm_size(comm, &NPES);
+  MPI_Comm_rank(comm, &MyID);
+  
   forcecutoff2=forcecutoff*forcecutoff;
   engconf=0.0;
-  for(int i=0;i<natoms;i++)for(int k=0;k<3;k++) forces[i][k]=0.0;
+  
+  for(int i=0;i<natoms;i++)
+    for(int k=0;k<3;k++)
+      forces[i][k]=0.0;
+  
   engcorrection=4.0*(1.0/pow(forcecutoff2,6.0)-1.0/pow(forcecutoff2,3));
+
   for(int iatom=0;iatom<natoms-1;iatom++){
-    for(int jlist=0;jlist<list[iatom].size();jlist++){
+
+    int jlist_partial = list[iatom].size() / NPES;
+    int rest = list[iatom].size() % NPES;
+    int offset = 0;
+    
+    if(rest != 0 and MyID < rest)
+      jlist_partial++;
+    else
+      offset = rest;
+
+    int start = jlist_partial * MyID + offset;
+    int end = start + jlist_partial; //list[iatom].size() / NPES;
+    
+    // for(int jlist=0;jlist<list[iatom].size();jlist++){
+    for(int jlist = start; jlist < end;jlist++){
+
       int jatom=list[iatom][jlist];
-      for(int k=0;k<3;k++) distance[k]=positions[iatom][k]-positions[jatom][k];
+
+      for(int k=0;k<3;k++)
+	distance[k]=positions[iatom][k]-positions[jatom][k];
+      
       pbc(cell,distance,distance_pbc);
-      distance_pbc2=0.0; for(int k=0;k<3;k++) distance_pbc2+=distance_pbc[k]*distance_pbc[k];
-// if the interparticle distance is larger than the cutoff, skip
-      if(distance_pbc2>forcecutoff2) continue;
+      distance_pbc2=0.0;
+
+      for(int k=0;k<3;k++)
+	distance_pbc2+=distance_pbc[k]*distance_pbc[k];
+      
+      // if the interparticle distance is larger than the cutoff, skip
+      if(distance_pbc2>forcecutoff2)
+	continue;
+
       double distance_pbc6=distance_pbc2*distance_pbc2*distance_pbc2;
       double distance_pbc8=distance_pbc6*distance_pbc2;
       double distance_pbc12=distance_pbc6*distance_pbc6;
       double distance_pbc14=distance_pbc12*distance_pbc2;
       engconf+=4.0*(1.0/distance_pbc12 - 1.0/distance_pbc6) - engcorrection;
-      for(int k=0;k<3;k++) f[k]=2.0*distance_pbc[k]*4.0*(6.0/distance_pbc14-3.0/distance_pbc8);
-// same force on the two atoms, with opposite sign:
-      for(int k=0;k<3;k++) forces[iatom][k]+=f[k];
-      for(int k=0;k<3;k++) forces[jatom][k]-=f[k];
+
+      for(int k=0;k<3;k++)
+	f[k]=2.0*distance_pbc[k]*4.0*(6.0/distance_pbc14-3.0/distance_pbc8);
+      
+      // same force on the two atoms, with opposite sign:
+      for(int k=0;k<3;k++)
+	forces[iatom][k]+=f[k];
+
+      for(int k=0;k<3;k++)
+	forces[jatom][k]-=f[k];
     }
   }
+  MPI_Allreduce(MPI_IN_PLACE, &(forces[0][0]), 3 * natoms, MPI_DOUBLE, MPI_SUM, comm);
+  MPI_Allreduce(MPI_IN_PLACE, &engconf, 1, MPI_DOUBLE, MPI_SUM, comm);
 }
 
 void compute_engkin(const int natoms,const vector<double>& masses,const vector<Vector>& velocities,double & engkin)
@@ -467,7 +508,7 @@ public:
   for(int iatom=0;iatom<natoms;++iatom) for(int k=0;k<3;++k) positions0[iatom][k]=positions[iatom][k];
 
 // forces are computed before starting md
-  compute_forces(natoms,positions,cell,forcecutoff,list,forces,engconf);
+  compute_forces(natoms,positions,cell,forcecutoff,list,forces,engconf, this -> MyComm);
 
 // here is the main md loop
 // Langevin thermostat is applied before and after a velocity-Verlet integrator
@@ -504,7 +545,7 @@ public:
 	fprintf(stdout,"List size: %d\n",list_size);
     }
 
-    compute_forces(natoms,positions,cell,forcecutoff,list,forces,engconf);
+    compute_forces(natoms,positions,cell,forcecutoff,list,forces,engconf, this->MyComm);
 
     for(int iatom=0;iatom<natoms;iatom++) for(int k=0;k<3;k++)
       velocities[iatom][k]+=forces[iatom][k]*0.5*tstep/masses[iatom];
