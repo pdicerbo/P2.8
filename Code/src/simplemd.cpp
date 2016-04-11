@@ -1,11 +1,11 @@
 #include "Vector.h"
 #include "Random.h"
 #include <string>
+#include <cstring>
 #include <cstdio>
 #include <cmath>
 #include <vector>
 #include <cstdlib>
-#include <mpi.h>
 
 using namespace std;
 using namespace PLMD;
@@ -22,13 +22,6 @@ bool write_positions_first;
 bool write_statistics_first;
 int write_statistics_last_time_reopened;
 FILE* write_statistics_fp;
-
-int modulo(int a, int b)
-{
-    int r = a % b;
-    return r < 0 ? r + b : r;
-}
-
 
 public:
 SimpleMD(){
@@ -60,7 +53,6 @@ read_input(FILE*   fp,
            string& trajfile,
            string& statfile,
            int&    maxneighbours,
-           int&    exchangestride,
            int&    idum)
 {
   temperature=1.0;
@@ -78,7 +70,6 @@ read_input(FILE*   fp,
   trajfile="";
   outputfile="";
   inputfile="";
-  exchangestride=0;
 
   string line;
 
@@ -138,8 +129,6 @@ read_input(FILE*   fp,
     }
     else if(keyword=="idum")
       sscanf(line.c_str(),"%s %d",buffer,&idum);
-    else if(keyword=="exchangestride")
-      sscanf(line.c_str(),"%s %d",buffer,&exchangestride);
     else{
       fprintf(stderr,"Unknown keywords :%s\n",keyword.c_str());
       exit(1);
@@ -218,44 +207,14 @@ void check_list(const int natoms,const vector<Vector>& positions,const vector<Ve
 
 
 void compute_list(const int natoms,const vector<Vector>& positions,const double cell[3],const double listcutoff,
-                  vector<vector<int> >& list,MPI_Comm intracomm){
-  int rank=0;
-  int npe=1;
-#ifdef SIMPLEMD_MPI
-  MPI_Comm_rank(intracomm,&rank);
-  MPI_Comm_size(intracomm,&npe);
-#endif
-
+                  vector<vector<int> >& list){
   Vector distance;     // distance of the two atoms
   Vector distance_pbc; // minimum-image distance of the two atoms
   double listcutoff2;  // squared list cutoff
   listcutoff2=listcutoff*listcutoff;
   list.assign(natoms,vector<int>());
-
-  Vector domain_side;
-  int ndomains[3];
-  for(int k=0;k<3;k++) ndomains[k]=int(cell[k]/listcutoff);
-  std::vector<std::vector<int> > domains;
-  domains.resize(ndomains[0]*ndomains[1]*ndomains[2]);
-  for(int k=0;k<3;k++) domain_side[k]=cell[k]/ndomains[k];
-  for(int iatom=0;iatom<natoms;iatom++){
-    int idomain[3];
-    for(int k=0;k<3;k++) idomain[k]=modulo(int((positions[iatom][k]/domain_side[k])),ndomains[k]);
-    domains[(idomain[0]*ndomains[1]+idomain[1])*ndomains[2]+idomain[2]].push_back(iatom);
-  }
-
-  int count=0;
-  for(int ix=0;ix<ndomains[0];ix++) for(int iy=0;iy<ndomains[1];iy++) for(int iz=0;iz<ndomains[2];iz++)
-  if(count++%npe==rank )
-  for(int jx=0;jx<ndomains[0];jx++) for(int jy=0;jy<ndomains[1];jy++) for(int jz=0;jz<ndomains[2];jz++)
-  if( (ix-jx+ndomains[0])%ndomains[0]<=1 || (ix-jx+ndomains[0])%ndomains[0]>ndomains[0]-2)
-  if( (iy-jy+ndomains[1])%ndomains[1]<=1 || (iy-jy+ndomains[1])%ndomains[1]>ndomains[1]-2)
-  if( (iz-jz+ndomains[2])%ndomains[2]<=1 || (iz-jz+ndomains[2])%ndomains[2]>ndomains[2]-2)
-  for(int iiatom=0;iiatom<domains[(ix*ndomains[1]+iy)*ndomains[2]+iz].size();iiatom++){
-    int iatom=domains[(ix*ndomains[1]+iy)*ndomains[2]+iz][iiatom];
-    for(int jjatom=0;jjatom<domains[(jx*ndomains[1]+jy)*ndomains[2]+jz].size();jjatom++){
-      int jatom=domains[(jx*ndomains[1]+jy)*ndomains[2]+jz][jjatom];
-      if(jatom<=iatom) continue;
+  for(int iatom=0;iatom<natoms-1;iatom++){
+    for(int jatom=iatom+1;jatom<natoms;jatom++){
       for(int k=0;k<3;k++) distance[k]=positions[iatom][k]-positions[jatom][k];
       pbc(cell,distance,distance_pbc);
 // if the interparticle distance is larger than the cutoff, skip
@@ -267,7 +226,7 @@ void compute_list(const int natoms,const vector<Vector>& positions,const double 
 }
 
 void compute_forces(const int natoms,const vector<Vector>& positions,const double cell[3],
-                    double forcecutoff,const vector<vector<int> >& list,vector<Vector>& forces,double & engconf,MPI_Comm intracomm)
+                    double forcecutoff,const vector<vector<int> >& list,vector<Vector>& forces,double & engconf)
 {
   Vector distance;        // distance of the two atoms
   Vector distance_pbc;    // minimum-image distance of the two atoms
@@ -299,12 +258,6 @@ void compute_forces(const int natoms,const vector<Vector>& positions,const doubl
       for(int k=0;k<3;k++) forces[jatom][k]-=f[k];
     }
   }
-
-#ifdef SIMPLEMD_MPI
-  MPI_Allreduce(MPI_IN_PLACE,&forces[0][0],3*natoms,MPI_DOUBLE,MPI_SUM,intracomm);
-  MPI_Allreduce(MPI_IN_PLACE,&engconf,1,MPI_DOUBLE,MPI_SUM,intracomm);
-#endif
-
 }
 
 void compute_engkin(const int natoms,const vector<double>& masses,const vector<Vector>& velocities,double & engkin)
@@ -397,11 +350,7 @@ void write_statistics(const string & statfile,const int istep,const double tstep
 
 
 public:
-#ifdef SIMPLEMD_MPI
-int main(FILE*in,FILE*out,MPI_Comm intercomm,MPI_Comm intracomm){
-#else
 int main(FILE*in,FILE*out){
-#endif
   int            natoms;       // number of atoms
   vector<Vector> positions;    // atomic positions
   vector<Vector> velocities;   // velocities
@@ -440,29 +389,12 @@ int main(FILE*in,FILE*out){
 
   bool recompute_list;           // control if the neighbour list have to be recomputed
 
-  int exchangestride;            // stride for replica exchange
-
   Random random;                 // random numbers stream
 
   read_input(in,temperature,tstep,friction,forcecutoff,
              listcutoff,nstep,nconfig,nstat,
              wrapatoms,inputfile,outputfile,trajfile,statfile,
-             maxneighbour,exchangestride,idum);
-
-#ifdef SIMPLEMD_MPI
-  int rank;
-  int npe;
-  MPI_Comm_rank(intracomm,&rank);
-  MPI_Comm_size(intracomm,&npe);
-// avoid output in ranks>0
-  if(rank>0){
-    trajfile="/dev/null";
-    statfile="/dev/null";
-    outputfile="/dev/null";
-  }
-#endif
-
-
+             maxneighbour,idum);
 
 // number of atoms is read from file inputfile
   read_natoms(inputfile,natoms);
@@ -483,7 +415,6 @@ int main(FILE*in,FILE*out){
   fprintf(stdout,"%s %s\n","Statistics file                  :",statfile.c_str());
   fprintf(stdout,"%s %d\n","Max average number of neighbours :",maxneighbour);
   fprintf(stdout,"%s %d\n","Seed                             :",idum);
-  fprintf(stdout,"%s %d\n","Stride for replica exchange      :",exchangestride);
   fprintf(stdout,"%s %s\n","Are atoms wrapped on output?     :",(wrapatoms?"T":"F"));
 
 // Setting the seed
@@ -510,7 +441,7 @@ int main(FILE*in,FILE*out){
   randomize_velocities(natoms,temperature,masses,velocities,random);
 
 // neighbour list are computed, and reference positions are saved
-  compute_list(natoms,positions,cell,listcutoff,list,intracomm);
+  compute_list(natoms,positions,cell,listcutoff,list);
 
   int list_size=0;
   for(int i=0;i<list.size();i++) list_size+=list[i].size();
@@ -518,7 +449,7 @@ int main(FILE*in,FILE*out){
   for(int iatom=0;iatom<natoms;++iatom) for(int k=0;k<3;++k) positions0[iatom][k]=positions[iatom][k];
 
 // forces are computed before starting md
-  compute_forces(natoms,positions,cell,forcecutoff,list,forces,engconf,intracomm);
+  compute_forces(natoms,positions,cell,forcecutoff,list,forces,engconf);
 
 // here is the main md loop
 // Langevin thermostat is applied before and after a velocity-Verlet integrator
@@ -543,7 +474,7 @@ int main(FILE*in,FILE*out){
 // a check is performed to decide whether to recalculate the neighbour list
     check_list(natoms,positions,positions0,listcutoff,forcecutoff,recompute_list);
     if(recompute_list){
-      compute_list(natoms,positions,cell,listcutoff,list,intracomm);
+      compute_list(natoms,positions,cell,listcutoff,list);
       for(int iatom=0;iatom<natoms;++iatom) for(int k=0;k<3;++k) positions0[iatom][k]=positions[iatom][k];
       fprintf(stdout,"Neighbour list recomputed at step %d\n",istep);
       int list_size=0;
@@ -551,7 +482,7 @@ int main(FILE*in,FILE*out){
       fprintf(stdout,"List size: %d\n",list_size);
     }
 
-    compute_forces(natoms,positions,cell,forcecutoff,list,forces,engconf,intracomm);
+    compute_forces(natoms,positions,cell,forcecutoff,list,forces,engconf);
 
     for(int iatom=0;iatom<natoms;iatom++) for(int k=0;k<3;k++)
       velocities[iatom][k]+=forces[iatom][k]*0.5*tstep/masses[iatom];
@@ -564,43 +495,6 @@ int main(FILE*in,FILE*out){
 // eventually, write positions and statistics
     if((istep+1)%nconfig==0) write_positions(trajfile,natoms,positions,cell,wrapatoms);
     if((istep+1)%nstat==0)   write_statistics(statfile,istep+1,tstep,natoms,engkin,engconf,engint);
-
-    if(exchangestride!=0 && (istep+1)%exchangestride==0){
-      int nrep;
-      int irep;
-      MPI_Comm_size(intercomm,&nrep);
-      MPI_Comm_rank(intercomm,&irep);
-      double data[3];
-      double partnerdata[3];
-      data[0]=1.0/temperature;
-      data[1]=engconf;
-      data[2]=random.U01();
-      int partner=irep+(((istep+1)/exchangestride+irep)%2)*2-1;
-      if(partner<0) partner=0;
-      if(partner>=nrep) partner=nrep-1;
-      MPI_Status status;
-      MPI_Sendrecv(data,3,MPI_DOUBLE,partner,123,partnerdata,3,MPI_DOUBLE,partner,123,intercomm,&status);
-
-      double delta=(data[0]-partnerdata[0])*(data[1]-partnerdata[1]);
-      double acceptance=exp(delta);
-      if(acceptance>1.0) acceptance=1.0;
-      fprintf(stderr,"### %d %d %d %lf %lf %lf %lf %lf\n", istep+1,irep,partner,data[0],data[1],partnerdata[0],partnerdata[1],acceptance);
-// make sure both processes uses the same random number
-      double r=0.0;
-      if(partner<irep) r=data[2];
-      else r=partnerdata[2];
-      if(acceptance>r){
-        vector<Vector> newpos(natoms);
-        vector<Vector> newvel(natoms);
-        MPI_Sendrecv(&positions[0],3*natoms,MPI_DOUBLE,partner,124,&newpos[0],3*natoms,MPI_DOUBLE,partner,124,intercomm,&status);
-        MPI_Sendrecv(&velocities[0],3*natoms,MPI_DOUBLE,partner,125,&newvel[0],3*natoms,MPI_DOUBLE,partner,125,intercomm,&status);
-        positions=newpos;
-        velocities=newvel;
-        double scale=sqrt(partnerdata[0]/data[0]);
-        for(unsigned i=0;i<natoms;i++) for(unsigned k=0;k<3;k++) velocities[i][k]*=scale;
-      }
-      
-    }
 
   }
 
@@ -616,36 +510,11 @@ int main(FILE*in,FILE*out){
 };
 
 int main(int argc,char*argv[]){
-#ifdef SIMPLEMD_MPI
-  MPI_Init(&argc,&argv);
-  assert(argc>1);
-  MPI_Comm intracomm;
-  MPI_Comm intercomm;
-  int nrep=argc-1;
-  int npe,rank;
-  MPI_Comm_size(MPI_COMM_WORLD,&npe);
-  MPI_Comm_rank(MPI_COMM_WORLD,&rank);
-  assert(npe%nrep==0);
-  MPI_Comm_split(MPI_COMM_WORLD,rank/(npe/nrep),rank,&intracomm);
-  MPI_Comm_split(MPI_COMM_WORLD,rank%(npe/nrep),rank,&intercomm);
-  int irep;
-  MPI_Comm_rank(intercomm,&irep);
-#endif
   SimpleMD smd;
   FILE* in=stdin;
-#ifndef SIMPLEMD_MPI
   if(argc>1) in=fopen(argv[1],"r");
-#endif
-#ifdef SIMPLEMD_MPI
-  in=fopen(argv[irep+1],"r");
-  int r=smd.main(in,stdout,intercomm,intracomm);
-#else
   int r=smd.main(in,stdout);
-#endif
   if(argc>1) fclose(in);
-#ifdef SIMPLEMD_MPI
-  MPI_Finalize();
-#endif
   return r;
  }
 
