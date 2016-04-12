@@ -1,0 +1,31 @@
+#check code speed as a function of number of atoms
+# using neighbor lists
+
+for n in 6 8 10
+do
+echo $((4*n*n*n))
+./lattice $n  > crystal.xyz
+cat > input << EOF
+# starting structure:
+inputfile crystal.xyz
+# final structure:
+outputfile output.xyz
+# temperature (Langevin thermostat)
+temperature 0.722
+# timestep
+tstep 0.005
+# friction coefficient (Langevin thermostat)
+friction 0.0
+# cutoff for forces
+forcecutoff 2.5
+# cutoff for neighbor lists
+listcutoff  3.0
+# total number of steps
+nstep 1000
+# stride for writing trajectory
+nconfig 10 trajectory.xyz
+# stride for writing energy file
+nstat   10 energies.dat
+EOF
+time ../src/simplemd.x input
+done

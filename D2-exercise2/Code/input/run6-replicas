@@ -1,0 +1,41 @@
+# run a parallel tempering simulation
+
+nrep=4
+nproc=4
+
+temp[0]=0.2
+temp[1]=0.22
+temp[2]=0.24
+temp[3]=0.26
+
+./lattice 6  > crystal.xyz
+
+rm input-*
+
+for((irep=0;irep<nrep;irep++))
+do
+
+cat > input-$irep << EOF
+# starting structure:
+inputfile crystal.xyz
+# final structure:
+outputfile output.xyz
+# temperature (Langevin thermostat)
+temperature ${temp[irep]}
+# timestep
+tstep 0.005
+# friction coefficient (Langevin thermostat)
+friction 0.0
+# cutoff for forces
+forcecutoff 2.5
+# cutoff for neighbor lists
+listcutoff  3.0
+# total number of steps
+nstep 1000
+# stride for writing trajectory
+nconfig 10 trajectory-$irep.xyz
+# stride for writing energy file
+nstat   10 energies-$irep.dat
+EOF
+done
+mpirun-openmpi-mp -np $nproc ../src/simplemd.x  input-*
