@@ -51,173 +51,202 @@ public:
 #endif
     
   }
-
+  
 private:
-
-void 
-read_input(FILE*   fp,
-           double& temperature,
-           double& tstep,
-           double& friction,
-           double& forcecutoff,
-           double& listcutoff,
-           int&    nstep,
-           int&    nconfig,
-           int&    nstat,
-           bool&   wrapatoms,
-           string& inputfile,
-           string& outputfile,
-           string& trajfile,
-           string& statfile,
-           int&    maxneighbours,
-           int&    idum)
-{
-  temperature=1.0;
-  tstep=0.005;
-  friction=0.0;
-  forcecutoff=2.5;
-  listcutoff=3.0;
-  nstep=1;
-  nconfig=10;
-  nstat=1;
-  maxneighbours=1000;
-  idum=0;
-  wrapatoms=false;
-  statfile="";
-  trajfile="";
-  outputfile="";
-  inputfile="";
-
-  string line;
   
+  void 
+    read_input(FILE*   fp,
+	       double& temperature,
+	       double& tstep,
+	       double& friction,
+	       double& forcecutoff,
+	       double& listcutoff,
+	       int&    nstep,
+	       int&    nconfig,
+	       int&    nstat,
+	       bool&   wrapatoms,
+	       string& inputfile,
+	       string& outputfile,
+	       string& trajfile,
+	       string& statfile,
+	       int&    maxneighbours,
+	       int&    idum)
+  {
+    temperature=1.0;
+    tstep=0.005;
+    friction=0.0;
+    forcecutoff=2.5;
+    listcutoff=3.0;
+    nstep=1;
+    nconfig=10;
+    nstat=1;
+    maxneighbours=1000;
+    idum=0;
+    wrapatoms=false;
+    statfile="";
+    trajfile="";
+    outputfile="";
+    inputfile="";
+    
+    string line;
+    
 #ifdef __MPI
-  int MyID;
-  MPI_Comm_rank( this->MyComm, &MyID);
+    int MyID;
+    MPI_Comm_rank( this->MyComm, &MyID);
 #endif
-  
-  line.resize(256);
-  char buffer[256];
-  char buffer1[256];
-  
-  while(fgets(buffer,256,fp)){
-    line=buffer;
-    for(int i=0;i<line.length();++i) if(line[i]=='#' || line[i]=='\n') line.erase(i);
-    for(int i=line.length()-1;i>=0;--i){
-      if(line[i]!=' ')break;
-      line.erase(i);
-    }
-    buffer[0]=0;
-    sscanf(line.c_str(),"%s",buffer);
-    if(strlen(buffer)==0) continue;
-    string keyword=buffer;
-    if(keyword=="temperature")
-      sscanf(line.c_str(),"%s %lf",buffer,&temperature);
-    else if(keyword=="tstep")
-      sscanf(line.c_str(),"%s %lf",buffer,&tstep);
-    else if(keyword=="friction")
-      sscanf(line.c_str(),"%s %lf",buffer,&friction);
-    else if(keyword=="forcecutoff")
-      sscanf(line.c_str(),"%s %lf",buffer,&forcecutoff);
-    else if(keyword=="listcutoff")
-      sscanf(line.c_str(),"%s %lf",buffer,&listcutoff);
-    else if(keyword=="nstep")
-      sscanf(line.c_str(),"%s %d",buffer,&nstep);
-    else if(keyword=="nconfig")
-    {
-      sscanf(line.c_str(),"%s %d %s",buffer,&nconfig,buffer1);
-      trajfile=buffer1;
+    
+    line.resize(256);
+    char buffer[256];
+    char buffer1[256];
+    
+    while(fgets(buffer,256,fp)){
+      line=buffer;
+      for(int i=0;i<line.length();++i) if(line[i]=='#' || line[i]=='\n') line.erase(i);
+      for(int i=line.length()-1;i>=0;--i){
+	if(line[i]!=' ')break;
+	line.erase(i);
+      }
+      buffer[0]=0;
+      sscanf(line.c_str(),"%s",buffer);
+      if(strlen(buffer)==0) continue;
+      string keyword=buffer;
+      if(keyword=="temperature")
+	sscanf(line.c_str(),"%s %lf",buffer,&temperature);
+      else if(keyword=="tstep")
+	sscanf(line.c_str(),"%s %lf",buffer,&tstep);
+      else if(keyword=="friction")
+	sscanf(line.c_str(),"%s %lf",buffer,&friction);
+      else if(keyword=="forcecutoff")
+	sscanf(line.c_str(),"%s %lf",buffer,&forcecutoff);
+      else if(keyword=="listcutoff")
+	sscanf(line.c_str(),"%s %lf",buffer,&listcutoff);
+      else if(keyword=="nstep")
+	sscanf(line.c_str(),"%s %d",buffer,&nstep);
+      else if(keyword=="nconfig")
+	{
+	  sscanf(line.c_str(),"%s %d %s",buffer,&nconfig,buffer1);
+	  trajfile=buffer1;
 #ifdef __MPI
-      if(MyID > 0)
-	trajfile = "/dev/null";
+	  if(MyID > 0)
+	    trajfile = "/dev/null";
 #endif
-    }
-    else if(keyword=="nstat")
-    {
+	}
+      else if(keyword=="nstat")
+	{
       sscanf(line.c_str(),"%s %d %s",buffer,&nstat,buffer1);
       statfile=buffer1;
 #ifdef __MPI
       if(MyID > 0)
 	statfile = "/dev/null";
 #endif
+	}
+      else if(keyword=="wrapatoms")
+	{
+	  sscanf(line.c_str(),"%s %s",buffer,buffer1);
+	  if(buffer1[0]=='T' || buffer1[0]=='t') wrapatoms=true;
+	}
+      else if(keyword=="maxneighbours")
+	sscanf(line.c_str(),"%s %d",buffer,&maxneighbours);
+      else if(keyword=="inputfile")
+	{
+	  sscanf(line.c_str(),"%s %s",buffer,buffer1);
+	  inputfile=buffer1;
+	}
+      else if(keyword=="outputfile")
+	{
+	  sscanf(line.c_str(),"%s %s",buffer,buffer1);
+	  outputfile=buffer1;
+	}
+      else if(keyword=="idum")
+	sscanf(line.c_str(),"%s %d",buffer,&idum);
+      else{
+	fprintf(stderr,"Unknown keywords :%s\n",keyword.c_str());
+	exit(1);
+      }
     }
-    else if(keyword=="wrapatoms")
-    {
-      sscanf(line.c_str(),"%s %s",buffer,buffer1);
-      if(buffer1[0]=='T' || buffer1[0]=='t') wrapatoms=true;
-    }
-    else if(keyword=="maxneighbours")
-      sscanf(line.c_str(),"%s %d",buffer,&maxneighbours);
-    else if(keyword=="inputfile")
-    {
-      sscanf(line.c_str(),"%s %s",buffer,buffer1);
-      inputfile=buffer1;
-    }
-    else if(keyword=="outputfile")
-    {
-      sscanf(line.c_str(),"%s %s",buffer,buffer1);
-      outputfile=buffer1;
-    }
-    else if(keyword=="idum")
-      sscanf(line.c_str(),"%s %d",buffer,&idum);
-    else{
-      fprintf(stderr,"Unknown keywords :%s\n",keyword.c_str());
-      exit(1);
-    }
-  }
-
+    
   if(inputfile.length()==0){
     fprintf(stderr,"Specify input file\n");
-      exit(1);
+    exit(1);
   }
   if(outputfile.length()==0){
-      fprintf(stderr,"Specify output file\n");
-      exit(1);
+    fprintf(stderr,"Specify output file\n");
+    exit(1);
   }
   if(trajfile.length()==0){
-      fprintf(stderr,"Specify traj file\n");
-      exit(1);
+    fprintf(stderr,"Specify traj file\n");
+    exit(1);
   }
   if(statfile.length()==0){
-      fprintf(stderr,"Specify stat file\n");
-      exit(1);
+    fprintf(stderr,"Specify stat file\n");
+    exit(1);
   }  
 }
+  
 
 void read_natoms(const string & inputfile,int & natoms){
-// read the number of atoms in file "input.xyz"
+  // read the number of atoms in file "input.xyz"
   FILE* fp=fopen(inputfile.c_str(),"r");
   fscanf(fp,"%d",&natoms);
   fclose(fp);
 }
-
-void read_positions(const string& inputfile,int natoms,vector<Vector>& positions,double cell[3]){
-// read positions and cell from a file called inputfile
-// natoms (input variable) and number of atoms in the file should be consistent
-  FILE* fp=fopen(inputfile.c_str(),"r");
-  char buffer[256];
-  char atomname[256];
-  fgets(buffer,256,fp);
-  fscanf(fp,"%lf %lf %lf",&cell[0],&cell[1],&cell[2]);
+ 
+ void read_positions(const string& inputfile,int natoms,vector<Vector>& positions,double cell[3]){
+   // read positions and cell from a file called inputfile
+   // natoms (input variable) and number of atoms in the file should be consistent
+   FILE* fp=fopen(inputfile.c_str(),"r");
+   char buffer[256];
+   char atomname[256];
+   fgets(buffer,256,fp);
+   fscanf(fp,"%lf %lf %lf",&cell[0],&cell[1],&cell[2]);
   for(int i=0;i<natoms;i++){
     fscanf(fp,"%s %lf %lf %lf",atomname,&positions[i][0],&positions[i][1],&positions[i][2]);
-// note: atomname is read but not used
+    // note: atomname is read but not used
   }
   fclose(fp);
-}
+ }
 
-void randomize_velocities(const int natoms,const double temperature,const vector<double>&masses,vector<Vector>& velocities,Random&random){
-// randomize the velocities according to the temperature
-  for(int iatom=0;iatom<natoms;iatom++) for(int i=0;i<3;i++)
-      velocities[iatom][i]=sqrt(temperature/masses[iatom])*random.Gaussian();
-}
+ int index_func(int i1, int i2, int i3, int M[3]){
+   return (i1 * M[1] * M[2] + i2 * M[2] + i3);
+ }
+ 
+ void assign_cells(int natoms, const vector<Vector> &positions, int M[3], vector< vector<int> > &subcells,
+		   double cell[3]){
 
-void pbc(const double cell[3],const Vector & vin,Vector & vout){
-// apply periodic boundary condition to a vector
-  for(int i=0;i<3;i++){
-    vout[i]=vin[i]-floor(vin[i]/cell[i]+0.5)*cell[i];
-  }
-}
+   int i1, i2, i3, index;
+   double l1, l2, l3;
 
+   l1 = cell[0] / M[0];
+   l2 = cell[1] / M[1];
+   l3 = cell[2] / M[2];
+
+   for(int iatom = 0; iatom < natoms; iatom++){
+
+     i1 = floor( (positions[iatom][0] - cell[0] * floor( positions[iatom][0]/cell[0] ) )/l1);
+     i2 = floor( (positions[iatom][1] - cell[1] * floor( positions[iatom][1]/cell[1] ) )/l2);
+     i3 = floor( (positions[iatom][2] - cell[2] * floor( positions[iatom][2]/cell[2] ) )/l3);
+
+     index = index_func(i1, i2, i3, M);
+
+     subcells[index].push_back(iatom);
+     printf("\t%lg\t%lg\t%lg\t%d\t%d\t%d\t%d\n", positions[iatom][0],
+	    positions[iatom][1], positions[iatom][2], i1, i2, i3, index);
+   }
+ }
+ 
+ void randomize_velocities(const int natoms,const double temperature,const vector<double>&masses,vector<Vector>& velocities,Random&random){
+   // randomize the velocities according to the temperature
+   for(int iatom=0;iatom<natoms;iatom++) for(int i=0;i<3;i++)
+					   velocities[iatom][i]=sqrt(temperature/masses[iatom])*random.Gaussian();
+ }
+ 
+ void pbc(const double cell[3],const Vector & vin,Vector & vout){
+   // apply periodic boundary condition to a vector
+   for(int i=0;i<3;i++){
+     vout[i]=vin[i]-floor(vin[i]/cell[i]+0.5)*cell[i];
+   }
+ }
+ 
 void check_list(const int natoms,const vector<Vector>& positions,const vector<Vector>&positions0,const double listcutoff,
                 const double forcecutoff,bool & recompute)
 {
@@ -474,6 +503,10 @@ public:
   vector< vector<int> >  list;         // neighbour list
   vector<Vector> positions0;   // reference atomic positions, i.e. positions when the neighbour list
 
+  vector< vector<int> > subcells; // list of subcells of the system
+  int M[3];
+  int nsubcells;
+  
 // input parameters
 // all of them have a reasonable default value, set in read_input()
   double      tstep;             // simulation timestep
@@ -500,7 +533,7 @@ public:
   bool recompute_list;           // control if the neighbour list have to be recomputed
 
   Random random;                 // random numbers stream
-
+  
 #ifdef __MPI
 
   int MyID;
@@ -561,6 +594,18 @@ public:
 // positions are read from file inputfile
   read_positions(inputfile,natoms,positions,cell);
 
+  nsubcells = 1;
+  
+  for(int k = 0; k < 3; k++){
+    M[k] = (int)(cell[k] / forcecutoff);
+    nsubcells *= M[k];
+    printf("k = %d, cell[K] = %lg, forcecutoff = %lg, M[k] = %d, nsubcells = %d\n", k, cell[k], forcecutoff, M[k], nsubcells);
+  }
+
+  subcells.resize(nsubcells);
+  
+  assign_cells(natoms, positions, M, subcells, cell);
+  
 // velocities are randomized according to temperature
   randomize_velocities(natoms,temperature,masses,velocities,random);
 
