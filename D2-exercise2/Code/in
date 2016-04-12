@@ -9,7 +9,7 @@ tstep 0.005
 # friction coefficient (Langevin thermostat)
 friction 1.0
 # cutoff for forces
-forcecutoff 1.5
+forcecutoff 1.
 # cutoff for neighbor lists
 listcutoff  1e6 #3.0
 # total number of steps

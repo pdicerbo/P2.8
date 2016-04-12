@@ -229,8 +229,10 @@ void read_natoms(const string & inputfile,int & natoms){
      index = index_func(i1, i2, i3, M);
 
      subcells[index].push_back(iatom);
+     /***
      printf("\t%lg\t%lg\t%lg\t%d\t%d\t%d\t%d\n", positions[iatom][0],
 	    positions[iatom][1], positions[iatom][2], i1, i2, i3, index);
+     ***/
    }
  }
  
@@ -597,9 +599,12 @@ public:
   nsubcells = 1;
   
   for(int k = 0; k < 3; k++){
+
     M[k] = (int)(cell[k] / forcecutoff);
     nsubcells *= M[k];
-    printf("k = %d, cell[K] = %lg, forcecutoff = %lg, M[k] = %d, nsubcells = %d\n", k, cell[k], forcecutoff, M[k], nsubcells);
+    
+    // printf("k = %d, cell[K] = %lg, forcecutoff = %lg, M[k] = %d, nsubcells = %d\n", k, cell[k], forcecutoff, M[k], nsubcells);
+    
   }
 
   subcells.resize(nsubcells);
