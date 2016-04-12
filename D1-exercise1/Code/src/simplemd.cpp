@@ -218,19 +218,48 @@ void check_list(const int natoms,const vector<Vector>& positions,const vector<Ve
 
 
 void compute_list(const int natoms,const vector<Vector>& positions,const double cell[3],const double listcutoff,
-                  vector<vector<int> >& list){
+                  vector<vector<int> >& list, MPI_Comm comm){
   Vector distance;     // distance of the two atoms
   Vector distance_pbc; // minimum-image distance of the two atoms
   double listcutoff2;  // squared list cutoff
+  int MyID, NPES;
+
+  MPI_Comm_size(comm, &NPES);
+  MPI_Comm_rank(comm, &MyID);
+  
   listcutoff2=listcutoff*listcutoff;
   list.assign(natoms,vector<int>());
+
   for(int iatom=0;iatom<natoms-1;iatom++){
-    for(int jatom=iatom+1;jatom<natoms;jatom++){
-      for(int k=0;k<3;k++) distance[k]=positions[iatom][k]-positions[jatom][k];
+
+    int real_offset = iatom + 1;
+    int jlist_partial = (natoms - (iatom + 1)) / NPES;
+    int rest = (natoms - (iatom + 1)) % NPES;
+    int offset = 0;
+
+    if(rest != 0 and MyID < rest)
+      jlist_partial++;
+    else
+      offset = rest;
+
+    int start = jlist_partial * MyID + offset + real_offset;
+    int end = start + jlist_partial;
+
+    for(int jatom = start; jatom < end; jatom++){
+      for(int k=0;k<3;k++)
+	distance[k]=positions[iatom][k]-positions[jatom][k];
+
       pbc(cell,distance,distance_pbc);
-// if the interparticle distance is larger than the cutoff, skip
-      double d2=0; for(int k=0;k<3;k++) d2+=distance_pbc[k]*distance_pbc[k];
-      if(d2>listcutoff2)continue;
+
+      // if the interparticle distance is larger than the cutoff, skip
+
+      double d2=0;
+
+      for(int k=0;k<3;k++)
+	d2+=distance_pbc[k]*distance_pbc[k];
+
+      if(d2>listcutoff2)
+	continue;
       list[iatom].push_back(jatom);
     }
   }
@@ -261,20 +290,7 @@ void compute_forces(const int natoms,const vector<Vector>& positions,const doubl
 
   for(int iatom=0;iatom<natoms-1;iatom++){
 
-    int jlist_partial = list[iatom].size() / NPES;
-    int rest = list[iatom].size() % NPES;
-    int offset = 0;
-    
-    if(rest != 0 and MyID < rest)
-      jlist_partial++;
-    else
-      offset = rest;
-
-    int start = jlist_partial * MyID + offset;
-    int end = start + jlist_partial; //list[iatom].size() / NPES;
-    
-    // for(int jlist=0;jlist<list[iatom].size();jlist++){
-    for(int jlist = start; jlist < end;jlist++){
+    for(int jlist = 0; jlist < list[iatom].size(); jlist++){
 
       int jatom=list[iatom][jlist];
 
@@ -497,7 +513,7 @@ public:
   randomize_velocities(natoms,temperature,masses,velocities,random);
 
 // neighbour list are computed, and reference positions are saved
-  compute_list(natoms,positions,cell,listcutoff,list);
+  compute_list(natoms,positions,cell,listcutoff,list, this->MyComm);
 
   int list_size=0;
   for(int i=0;i<list.size();i++) list_size+=list[i].size();
@@ -533,7 +549,7 @@ public:
 // a check is performed to decide whether to recalculate the neighbour list
     check_list(natoms,positions,positions0,listcutoff,forcecutoff,recompute_list);
     if(recompute_list){
-      compute_list(natoms,positions,cell,listcutoff,list);
+      compute_list(natoms,positions,cell,listcutoff,list, this->MyComm);
       for(int iatom=0;iatom<natoms;++iatom) for(int k=0;k<3;++k) positions0[iatom][k]=positions[iatom][k];
 
       if(MyID == 0)
