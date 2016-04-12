@@ -207,7 +207,7 @@ void read_natoms(const string & inputfile,int & natoms){
  }
 
  int index_func(int i1, int i2, int i3, int M[3]){
-   return (i1 * M[1] * M[2] + i2 * M[2] + i3);
+   return i1 * M[1] * M[2] + i2 * M[2] + i3;
  }
  
  void assign_cells(int natoms, const vector<Vector> &positions, int M[3], vector< vector<int> > &subcells,
@@ -229,6 +229,7 @@ void read_natoms(const string & inputfile,int & natoms){
      index = index_func(i1, i2, i3, M);
 
      subcells[index].push_back(iatom);
+
      /***
      printf("\t%lg\t%lg\t%lg\t%d\t%d\t%d\t%d\n", positions[iatom][0],
 	    positions[iatom][1], positions[iatom][2], i1, i2, i3, index);
@@ -262,7 +263,10 @@ void check_list(const int natoms,const vector<Vector>& positions,const vector<Ve
     for(int k=0;k<3;k++) displacement[k]=positions[iatom][k]-positions0[iatom][k];
     double s=0.0;
     for(int k=0;k<3;k++) s+=displacement[k]*displacement[k];
-    if(s>delta2) recompute=true;
+    if(s>delta2){
+      recompute=true;
+      break;
+    }
   }
 }
 
