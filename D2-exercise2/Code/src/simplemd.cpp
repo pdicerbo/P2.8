@@ -302,7 +302,8 @@ void compute_list(const int natoms,const vector<Vector>& positions,const double 
   double l3 = cell[2] / M[2];
 
   /***
-    for(int iatom=0;iatom<natoms-1;iatom++){
+   // old loop
+   for(int iatom=0;iatom<natoms-1;iatom++){
   ***/
   
   for(int i1 = 0; i1 < M[0]; i1++){
@@ -372,25 +373,26 @@ void compute_list(const int natoms,const vector<Vector>& positions,const double 
 
 
     /***
+    // old loop
     for(int jatom = start; jatom < end; jatom++){
       for(int k=0;k<3;k++)
 	distance[k]=positions[iatom][k]-positions[jatom][k];
-	
+      
       pbc(cell,distance,distance_pbc);
-
+      
       // if the interparticle distance is larger than the cutoff, skip
-
+      
       double d2=0;
-
+      
       for(int k=0;k<3;k++)
 	d2+=distance_pbc[k]*distance_pbc[k];
-
+      
       if(d2>listcutoff2)
 	continue;
       list[iatom].push_back(jatom);
     }
     ***/
-
+    
 
     
   }
