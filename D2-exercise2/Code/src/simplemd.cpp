@@ -583,8 +583,9 @@ public:
   
 #ifdef __MPI
 
-  int MyID;
+  int MyID, NPES;
   MPI_Comm_rank(this -> MyComm, &MyID);
+  MPI_Comm_size(this -> MyComm, &NPES);
 
 #endif
   
@@ -651,6 +652,18 @@ public:
       printf("\n\tWrong parameters; Check it!\n\tExit\n\n");
       exit(0);
     }
+
+#ifdef __MPI
+    if(M[k] < NPES){
+      
+      if(MyID == 0)
+	printf("\n\tSystem too small :)\n\tReduce NPES or increase the size\n\tExit\n\n");
+
+      MPI_Finalize();
+      
+      exit(0);
+    }
+#endif
     
     nsubcells *= M[k];    
   }
@@ -712,11 +725,11 @@ public:
     check_list(natoms,positions,positions0,listcutoff,forcecutoff,recompute_list);
     if(recompute_list){
 
-#ifdef __MPI
       assign_cells(natoms, positions, M, subcells, cell);
+
+#ifdef __MPI
       compute_list(natoms,positions,cell,listcutoff,list, subcells, M, this->MyComm);
 #else
-      assign_cells(natoms, positions, M, subcells, cell);
       compute_list(natoms,positions,cell,listcutoff,list, subcells, M);
 #endif
       
