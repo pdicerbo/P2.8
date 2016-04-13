@@ -13,7 +13,7 @@ forcecutoff 2
 # cutoff for neighbor lists
 listcutoff  3
 # total number of steps
-nstep 500
+nstep 1000
 # stride for writing trajectory
 nconfig 10 trajectory.xyz
 # stride for writing energy file
