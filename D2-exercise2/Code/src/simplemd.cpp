@@ -275,7 +275,7 @@ void check_list(const int natoms,const vector<Vector>& positions,const vector<Ve
 
 #ifdef __MPI
 void compute_list(const int natoms,const vector<Vector>& positions,const double cell[3],const double listcutoff,
-                  vector<vector<int> >& list, MPI_Comm comm){
+                  vector<vector<int> >& list, const vector<vector<int> >& subcells, const int M[3], MPI_Comm comm){
 #else
 void compute_list(const int natoms,const vector<Vector>& positions,const double cell[3],const double listcutoff,
                   vector<vector<int> >& list, const vector<vector<int> >& subcells, const int M[3]){
@@ -301,100 +301,73 @@ void compute_list(const int natoms,const vector<Vector>& positions,const double 
   double l2 = cell[1] / M[1];
   double l3 = cell[2] / M[2];
 
-  /***
-   // old loop
-   for(int iatom=0;iatom<natoms-1;iatom++){
-  ***/
+#ifdef __MPI
+
+  int jlist_partial = M[0] / NPES;
+  int rest = M[0] % NPES;
+  int offset = 0;
   
-  for(int i1 = 0; i1 < M[0]; i1++){
+  if(rest != 0 and MyID < rest)
+    jlist_partial++;
+  else
+    offset = rest;
+  
+  int start = jlist_partial * MyID + offset;
+  int end = start + jlist_partial;
+  
+#else
+
+  int start = 0;
+  int end = M[0];
+
+#endif
+
+  // loop over all cells
+  for(int i1 = start; i1 < end; i1++){
     for(int i2 = 0; i2 < M[1]; i2++){
       for(int i3 = 0; i3 < M[2]; i3++){
+
 	int cell_index = index_func(i1, i2, i3, M);
     
 	for(int MyAtom = 0; MyAtom < subcells[cell_index].size(); MyAtom++){
 	  int iatom = subcells[cell_index][MyAtom];
 
-#ifdef __MPI
-    int real_offset = iatom + 1;
-    int jlist_partial = (natoms - (iatom + 1)) / NPES;
-    int rest = (natoms - (iatom + 1)) % NPES;
-    int offset = 0;
-
-    if(rest != 0 and MyID < rest)
-      jlist_partial++;
-    else
-      offset = rest;
-
-    int start = jlist_partial * MyID + offset + real_offset;
-    int end = start + jlist_partial;
-
-#else
-
-    int start = iatom + 1;
-    int end = natoms;
-
-#endif
-
-    for(int ix = -1; ix <= 1; ix++){
-      for(int iy = -1; iy <= 1; iy++){
-	for(int iz = -1; iz <= 1; iz++){
-	  int index = index_func(i1 + ix, i2 + iy, i3 + iz, M);
-	  
-	  for(int jlist = 0; jlist < subcells[index].size(); jlist++){
-	    
-	    int jatom = subcells[index][jlist];
-	    
-	    if(jatom <= iatom)
-	      continue;
-	    
-	    for(int k=0;k<3;k++)
-	      distance[k]=positions[iatom][k]-positions[jatom][k];
-	    
-	    pbc(cell,distance,distance_pbc);
-	    
-	    // if the interparticle distance is larger than the cutoff, skip
-	    
-	    double d2=0;
-	    
-	    for(int k=0;k<3;k++)
-	      d2+=distance_pbc[k]*distance_pbc[k];
-	    
-	    if(d2>listcutoff2)
-	      continue;
-	    list[iatom].push_back(jatom);
-	    
+	  // loop over neighbours cells
+	  for(int ix = -1; ix <= 1; ix++){
+	    for(int iy = -1; iy <= 1; iy++){
+	      for(int iz = -1; iz <= 1; iz++){
+		int index = index_func(i1 + ix, i2 + iy, i3 + iz, M);
+		
+		for(int jlist = 0; jlist < subcells[index].size(); jlist++){
+		  
+		  int jatom = subcells[index][jlist];
+		  
+		  if(jatom <= iatom)
+		    continue;
+		  
+		  for(int k=0;k<3;k++)
+		    distance[k]=positions[iatom][k]-positions[jatom][k];
+		  
+		  pbc(cell,distance,distance_pbc);
+		  
+		  // if the interparticle distance is larger than the cutoff, skip
+		  
+		  double d2=0;
+		  
+		  for(int k=0;k<3;k++)
+		    d2+=distance_pbc[k]*distance_pbc[k];
+		  
+		  if(d2>listcutoff2)
+		    continue;
+		  list[iatom].push_back(jatom);
+		  
+		}
+	      }
+	    }
 	  }
 	}
       }
     }
-	}
-      }
-    }
-
-
-    /***
-    // old loop
-    for(int jatom = start; jatom < end; jatom++){
-      for(int k=0;k<3;k++)
-	distance[k]=positions[iatom][k]-positions[jatom][k];
-      
-      pbc(cell,distance,distance_pbc);
-      
-      // if the interparticle distance is larger than the cutoff, skip
-      
-      double d2=0;
-      
-      for(int k=0;k<3;k++)
-	d2+=distance_pbc[k]*distance_pbc[k];
-      
-      if(d2>listcutoff2)
-	continue;
-      list[iatom].push_back(jatom);
-    }
-    ***/
-    
-
-    
   }
 }
  
@@ -691,7 +664,7 @@ public:
 
 // neighbour list are computed, and reference positions are saved
 #ifdef __MPI
-  compute_list(natoms,positions,cell,listcutoff,list, this->MyComm);
+  compute_list(natoms,positions,cell,listcutoff,list, subcells, M, this->MyComm);
 #else
   compute_list(natoms,positions,cell,listcutoff,list, subcells, M);
 #endif
@@ -740,7 +713,8 @@ public:
     if(recompute_list){
 
 #ifdef __MPI
-      compute_list(natoms,positions,cell,listcutoff,list, this->MyComm);
+      assign_cells(natoms, positions, M, subcells, cell);
+      compute_list(natoms,positions,cell,listcutoff,list, subcells, M, this->MyComm);
 #else
       assign_cells(natoms, positions, M, subcells, cell);
       compute_list(natoms,positions,cell,listcutoff,list, subcells, M);
