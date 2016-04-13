@@ -206,20 +206,29 @@ void read_natoms(const string & inputfile,int & natoms){
   fclose(fp);
  }
 
- int index_func(int i1, int i2, int i3, int M[3]){
+ int index_func(int i1, int i2, int i3, const int M[3]){
+
+   i1 = (i1 + M[0]) % M[0];
+   i2 = (i2 + M[1]) % M[1];
+   i3 = (i3 + M[2]) % M[2];
+
    return i1 * M[1] * M[2] + i2 * M[2] + i3;
  }
  
- void assign_cells(int natoms, const vector<Vector> &positions, int M[3], vector< vector<int> > &subcells,
+ void assign_cells(int natoms, const vector<Vector> &positions, const int M[3], vector< vector<int> > &subcells,
 		   double cell[3]){
 
    int i1, i2, i3, index;
    double l1, l2, l3;
 
+   subcells.assign(subcells.size(), vector<int>());
+   
    l1 = cell[0] / M[0];
    l2 = cell[1] / M[1];
    l3 = cell[2] / M[2];
 
+   // cout << "M = " << M[0] << "\t" << M[1] << "\t" << M[2] << endl;
+   
    for(int iatom = 0; iatom < natoms; iatom++){
 
      i1 = floor( (positions[iatom][0] - cell[0] * floor( positions[iatom][0]/cell[0] ) )/l1);
@@ -275,23 +284,41 @@ void compute_list(const int natoms,const vector<Vector>& positions,const double 
                   vector<vector<int> >& list, MPI_Comm comm){
 #else
 void compute_list(const int natoms,const vector<Vector>& positions,const double cell[3],const double listcutoff,
-                  vector<vector<int> >& list){
+                  vector<vector<int> >& list, const vector<vector<int> >& subcells, const int M[3]){
 #endif
+
   Vector distance;     // distance of the two atoms
   Vector distance_pbc; // minimum-image distance of the two atoms
   double listcutoff2;  // squared list cutoff
 
 #ifdef __MPI
+
   int MyID, NPES;
 
   MPI_Comm_size(comm, &NPES);
   MPI_Comm_rank(comm, &MyID);
+
 #endif
   
   listcutoff2=listcutoff*listcutoff;
   list.assign(natoms,vector<int>());
 
-  for(int iatom=0;iatom<natoms-1;iatom++){
+  double l1 = cell[0] / M[0];
+  double l2 = cell[1] / M[1];
+  double l3 = cell[2] / M[2];
+
+  /***
+    for(int iatom=0;iatom<natoms-1;iatom++){
+  ***/
+  
+  for(int i1 = 0; i1 < M[0]; i1++){
+    for(int i2 = 0; i2 < M[1]; i2++){
+      for(int i3 = 0; i3 < M[2]; i3++){
+	int cell_index = index_func(i1, i2, i3, M);
+    
+	for(int MyAtom = 0; MyAtom < subcells[cell_index].size(); MyAtom++){
+	  int iatom = subcells[cell_index][MyAtom];
+
 #ifdef __MPI
     int real_offset = iatom + 1;
     int jlist_partial = (natoms - (iatom + 1)) / NPES;
@@ -305,15 +332,62 @@ void compute_list(const int natoms,const vector<Vector>& positions,const double 
 
     int start = jlist_partial * MyID + offset + real_offset;
     int end = start + jlist_partial;
+
 #else
+
     int start = iatom + 1;
     int end = natoms;
+
 #endif
+
+    /***
+    int i1 = floor( (positions[iatom][0] - cell[0] * floor( positions[iatom][0]/cell[0] ) )/l1);
+    int i2 = floor( (positions[iatom][1] - cell[1] * floor( positions[iatom][1]/cell[1] ) )/l2);
+    int i3 = floor( (positions[iatom][2] - cell[2] * floor( positions[iatom][2]/cell[2] ) )/l3);
+    ***/
     
+    for(int ix = -1; ix <= 1; ix++){
+      for(int iy = -1; iy <= 1; iy++){
+	for(int iz = -1; iz <= 1; iz++){
+	  int index = index_func(i1 + ix, i2 + iy, i3 + iz, M);
+	  
+	  for(int jlist = 0; jlist < subcells[index].size(); jlist++){
+	    
+	    int jatom = subcells[index][jlist];
+	    
+	    if(jatom <= iatom)
+	      continue;
+	    
+	    for(int k=0;k<3;k++)
+	      distance[k]=positions[iatom][k]-positions[jatom][k];
+	    
+	    pbc(cell,distance,distance_pbc);
+	    
+	    // if the interparticle distance is larger than the cutoff, skip
+	    
+	    double d2=0;
+	    
+	    for(int k=0;k<3;k++)
+	      d2+=distance_pbc[k]*distance_pbc[k];
+	    
+	    if(d2>listcutoff2)
+	      continue;
+	    list[iatom].push_back(jatom);
+	    
+	  }
+	}
+      }
+    }
+	}
+      }
+    }
+
+
+    /***
     for(int jatom = start; jatom < end; jatom++){
       for(int k=0;k<3;k++)
 	distance[k]=positions[iatom][k]-positions[jatom][k];
-
+	
       pbc(cell,distance,distance_pbc);
 
       // if the interparticle distance is larger than the cutoff, skip
@@ -327,6 +401,10 @@ void compute_list(const int natoms,const vector<Vector>& positions,const double 
 	continue;
       list[iatom].push_back(jatom);
     }
+    ***/
+
+
+    
   }
 }
  
@@ -603,12 +681,11 @@ public:
   nsubcells = 1;
   
   for(int k = 0; k < 3; k++){
-
-    M[k] = (int)(cell[k] / forcecutoff);
+    
+    M[k] = (int)(cell[k] / listcutoff / 1.05); //forcecutoff);
     nsubcells *= M[k];
     
-    // printf("k = %d, cell[K] = %lg, forcecutoff = %lg, M[k] = %d, nsubcells = %d\n", k, cell[k], forcecutoff, M[k], nsubcells);
-    
+    printf("k = %d, cell[K] = %lg, forcecutoff = %lg, M[k] = %d, nsubcells = %d\n", k, cell[k], forcecutoff, M[k], nsubcells);
   }
 
   subcells.resize(nsubcells);
@@ -622,7 +699,7 @@ public:
 #ifdef __MPI
   compute_list(natoms,positions,cell,listcutoff,list, this->MyComm);
 #else
-  compute_list(natoms,positions,cell,listcutoff,list);
+  compute_list(natoms,positions,cell,listcutoff,list, subcells, M);
 #endif
   
   int list_size=0;
@@ -671,7 +748,8 @@ public:
 #ifdef __MPI
       compute_list(natoms,positions,cell,listcutoff,list, this->MyComm);
 #else
-      compute_list(natoms,positions,cell,listcutoff,list);
+      assign_cells(natoms, positions, M, subcells, cell);
+      compute_list(natoms,positions,cell,listcutoff,list, subcells, M);
 #endif
       
       for(int iatom=0;iatom<natoms;++iatom) for(int k=0;k<3;++k) positions0[iatom][k]=positions[iatom][k];
