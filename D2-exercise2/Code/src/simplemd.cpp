@@ -227,8 +227,6 @@ void read_natoms(const string & inputfile,int & natoms){
    l2 = cell[1] / M[1];
    l3 = cell[2] / M[2];
 
-   // cout << "M = " << M[0] << "\t" << M[1] << "\t" << M[2] << endl;
-   
    for(int iatom = 0; iatom < natoms; iatom++){
 
      i1 = floor( (positions[iatom][0] - cell[0] * floor( positions[iatom][0]/cell[0] ) )/l1);
@@ -239,10 +237,6 @@ void read_natoms(const string & inputfile,int & natoms){
 
      subcells[index].push_back(iatom);
 
-     /***
-     printf("\t%lg\t%lg\t%lg\t%d\t%d\t%d\t%d\n", positions[iatom][0],
-	    positions[iatom][1], positions[iatom][2], i1, i2, i3, index);
-     ***/
    }
  }
  
@@ -340,12 +334,6 @@ void compute_list(const int natoms,const vector<Vector>& positions,const double 
 
 #endif
 
-    /***
-    int i1 = floor( (positions[iatom][0] - cell[0] * floor( positions[iatom][0]/cell[0] ) )/l1);
-    int i2 = floor( (positions[iatom][1] - cell[1] * floor( positions[iatom][1]/cell[1] ) )/l2);
-    int i3 = floor( (positions[iatom][2] - cell[2] * floor( positions[iatom][2]/cell[2] ) )/l3);
-    ***/
-    
     for(int ix = -1; ix <= 1; ix++){
       for(int iy = -1; iy <= 1; iy++){
 	for(int iz = -1; iz <= 1; iz++){
@@ -682,10 +670,14 @@ public:
   
   for(int k = 0; k < 3; k++){
     
-    M[k] = (int)(cell[k] / listcutoff / 1.05); //forcecutoff);
-    nsubcells *= M[k];
+    M[k] = (int)(cell[k] / listcutoff / 1.05);
+
+    if(M[k] < 3){
+      printf("\n\tWrong parameters; Check it!\n\tExit\n\n");
+      exit(0);
+    }
     
-    printf("k = %d, cell[K] = %lg, forcecutoff = %lg, M[k] = %d, nsubcells = %d\n", k, cell[k], forcecutoff, M[k], nsubcells);
+    nsubcells *= M[k];    
   }
 
   subcells.resize(nsubcells);
