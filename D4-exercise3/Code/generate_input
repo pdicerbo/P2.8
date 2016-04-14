@@ -53,7 +53,8 @@ do
 	outputfile=outputfile\ $output$i$dot_xyz
 	nconfig=nconfig\ 10\ $traj$i$dot_xyz
 	nstat=nstat\ 10\ $energy$i$dot_dat
-
+	idum=idum\ $i
+	
 	echo "writing $namefile$i input file; $tdiff"
 	echo $inputfile > $namefile$i;
 	echo $outputfile >> $namefile$i;
@@ -65,6 +66,7 @@ do
 	echo $nstep >> $namefile$i
 	echo $nconfig >> $namefile$i
 	echo $nstat >> $namefile$i
+	echo $idum >> $namefile$i
 done
 
 fi
