@@ -8,4 +8,4 @@ parallel:
 	$(MAKE) -C src parallel
 
 data:
-	rm -f trajectory.xyz output.xyz energies.dat	
+	rm -f trajectory.xyz output.xyz energies.dat *0.dat *0.xyz *1.dat *1.xyz

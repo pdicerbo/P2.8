@@ -1,4 +1,5 @@
 namefile=in #MyInputFile
+output=output
 energy=energies
 traj=trajectory
 dot_dat=.dat
@@ -9,12 +10,6 @@ tmax=1.5
 
 # starting structure:
 inputfile=inputfile\ crystal.xyz
-
-# final structure:
-outputfile=outputfile\ output.xyz
-
-# temperature (Langevin thermostat)
-temperature=temperature\ 0.722
 
 # timestep
 tstep=tstep\ 0.005
@@ -34,21 +29,28 @@ nstep=nstep\ 1000
 # nconfig: stride for writing trajectory
 # nstat: stride for writing energy file
 
-END=$1 # this must to be equal to NPES + 1
+# $1 (input value) must to be equal to the number of files that you want to generate
+END=$1
+END=$(($END-1))
 
 if [ -f $1  ]
 then
-    echo "Syntax:"
+    echo ""
+    echo "  Syntax:"
     echo ""
     echo -e "\t $0 N"
     echo ""
-    echo "where N = NPES + 1"
+    echo "  where N = NPES + 1"
+    echo ""
 else
 
 for i in $(seq 0 $(($END)));
 do
+	# calculate the temperature
 	t=$(echo "($tmin*e($i/$END*l($tmax/$tmin)))" | bc -l)
+
 	temperature=temperature\ $t
+	outputfile=outputfile\ $output$i$dot_xyz
 	nconfig=nconfig\ 10\ $traj$i$dot_xyz
 	nstat=nstat\ 10\ $energy$i$dot_dat
 
