@@ -820,7 +820,7 @@ int main(int argc,char*argv[]){
       in = fopen(argv[ color+1 ], "r");
   }
   int r = smd.main(in,stdout);
-
+  
   if(argc>1)
     fclose(in);
 
