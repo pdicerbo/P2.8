@@ -817,7 +817,7 @@ int main(int argc,char*argv[]){
     if( argc < 3 )
       in=fopen(argv[1],"r");
     else
-      in = fopen(argv[ color+1 ], "r");
+      in = fopen(argv[color+1], "r");
   }
   int r = smd.main(in,stdout);
   
