@@ -1,4 +1,6 @@
-all:
+all: parallel
+
+serial:
 	$(MAKE) -C src
 clean:
 	$(MAKE) -C src clean

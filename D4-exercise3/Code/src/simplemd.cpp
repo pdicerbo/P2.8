@@ -775,26 +775,67 @@ int main(int argc,char*argv[]){
 
 #ifdef __MPI
   int MyID, NPES;
-  
-  MPI_Init(&argc, &argv);
-  SimpleMD smd(MPI_COMM_WORLD);
+  MPI_Comm MyComm;
 
-  MPI_Comm_rank(MPI_COMM_WORLD, &MyID);
-  MPI_Comm_size(MPI_COMM_WORLD, &NPES);
+  MPI_Init(&argc, &argv);
+
+  int n_comm = argc - 1; // number of communicators
+  int color, NewID, NewSize;
+  
+  if(n_comm > 1){
+        
+    MPI_Comm_rank(MPI_COMM_WORLD, &MyID);
+    MPI_Comm_size(MPI_COMM_WORLD, &NPES);
+
+    if(NPES % n_comm != 0 or NPES == n_comm){
+      if(MyID == 0)
+	printf("\n\tNPES % n_comm != 0 or NPES == n_comm\n\texit\n\n");
+
+      MPI_Finalize();
+      exit(0);
+    }
+    
+    if(MyID == 0)
+      fprintf(stderr, "\n\n\tn_comm = %d\n\n", n_comm);
+  
+    // color = (MyID / n_comm) % NPES;
+    color = MyID / n_comm;
+    
+    MPI_Comm_split(MPI_COMM_WORLD, color, MyID, &MyComm);
+    
+    MPI_Comm_rank(MyComm, &NewID);
+    MPI_Comm_size(MyComm, &NewSize);
+    
+    fprintf(stderr, "\tStart with %d of %d and go to %d of %d\n", MyID, NPES, NewID, NewSize); 
+  }
+  else
+    MyComm = MPI_COMM_WORLD;
+  
+  SimpleMD smd(MyComm);
+
+  if(argc>1){
+    if( argc < 3 )
+      in=fopen(argv[1],"r");
+    else
+      in = fopen(argv[ color+1 ], "r");
+  }
+  // int r = smd.main(in,stdout);
+
+  if(argc>1)
+    fclose(in);
+
+  MPI_Finalize();
+
 #else
 
   SimpleMD smd;
 
-#endif
-
   if(argc>1) in=fopen(argv[1],"r");
-  int r=smd.main(in,stdout);
+  int r = smd.main(in,stdout);
   if(argc>1) fclose(in);
 
-#ifdef __MPI
-  MPI_Finalize();
 #endif
-  
+
   return 0;
 }
 
