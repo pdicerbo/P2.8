@@ -652,22 +652,22 @@ public:
       printf("\n\tWrong parameters; Check it!\n\tExit\n\n");
       exit(0);
     }
-
-#ifdef __MPI
-    if(M[k] < NPES){
-      
-      if(MyID == 0)
-	printf("\n\tSystem too small :)\n\tReduce NPES or increase the size\n\tExit\n\n");
-
-      MPI_Finalize();
-      
-      exit(0);
-    }
-#endif
     
     nsubcells *= M[k];    
   }
 
+#ifdef __MPI
+  if(M[0] < NPES){
+    
+    if(MyID == 0)
+      printf("\n\tSystem too small :)\n\tReduce NPES or increase the size\n\tExit\n\n");
+    
+    MPI_Finalize();
+    
+    exit(0);
+  }
+#endif
+  
   subcells.resize(nsubcells);
   
   assign_cells(natoms, positions, M, subcells, cell);
