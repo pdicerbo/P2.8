@@ -301,34 +301,19 @@ void compute_list(const int natoms,const vector<Vector>& positions,const double 
   double l2 = cell[1] / M[1];
   double l3 = cell[2] / M[2];
 
-#ifdef __MPI
-
-  int jlist_partial = M[0] / NPES;
-  int rest = M[0] % NPES;
-  int offset = 0;
-  
-  if(rest != 0 and MyID < rest)
-    jlist_partial++;
-  else
-    offset = rest;
-  
-  int start = jlist_partial * MyID + offset;
-  int end = start + jlist_partial;
-  
-#else
-
-  int start = 0;
-  int end = M[0];
-
-#endif
-
   // loop over all cells
-  for(int i1 = start; i1 < end; i1++){
+  for(int i1 = 0; i1 < M[0]; i1++){
     for(int i2 = 0; i2 < M[1]; i2++){
       for(int i3 = 0; i3 < M[2]; i3++){
 
 	int cell_index = index_func(i1, i2, i3, M);
-    
+
+#ifdef __MPI
+	// Round robin assignment of cells
+	if(( cell_index + MyID) % NPES != 0)
+	  continue;
+#endif
+	
 	for(int MyAtom = 0; MyAtom < subcells[cell_index].size(); MyAtom++){
 	  int iatom = subcells[cell_index][MyAtom];
 
@@ -657,10 +642,11 @@ public:
   }
 
 #ifdef __MPI
-  if(M[0] < NPES){
+  if(nsubcells < NPES){
     
     if(MyID == 0)
-      printf("\n\tSystem too small :)\n\tReduce NPES or increase the size\n\tExit\n\n");
+      printf("\n\tSystem too small :)\n\tnsubcells = %d < %d = NPES\n\tReduce NPES or increase the size\n\tExit\n\n",
+	     nsubcells, NPES);
     
     MPI_Finalize();
     
