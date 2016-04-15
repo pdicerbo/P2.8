@@ -33,7 +33,7 @@ class SimpleMD
   
 public:
 #ifdef __MPI
-  SimpleMD(MPI_Comm comm, MPI_Comm col_comm, int color){
+  SimpleMD(MPI_Comm comm, MPI_Comm rep_comm, int color){
 #else
   SimpleMD(){
 #endif
@@ -49,7 +49,7 @@ public:
     
 #ifdef __MPI
     MyComm = comm;
-    ReplicaComm = col_comm;
+    ReplicaComm = rep_comm;
     i_rep = color;
 #endif
     
@@ -750,7 +750,12 @@ public:
       if(partner<0) partner=0;
       if(partner>=nrep) partner=nrep-1;
 
-      fprintf(stderr, "\tMyWorldID = %d; MyID = %d; RepID = %d, partner = %d\n", world_id, MyID, ReplicaID, partner);
+      /***
+      fprintf(stderr, "\tMyWorldID = %d; MyID = %d; RepID = %d, partner = %d\n",
+	      world_id, MyID, ReplicaID, partner);
+      ***/
+
+      // if(partner != ReplicaID)
       
     }
     
