@@ -27,13 +27,13 @@ class SimpleMD
   int write_statistics_last_time_reopened;
   FILE* write_statistics_fp;
 #ifdef __MPI
-  MPI_Comm MyComm;
+  MPI_Comm MyComm, ColComm;
   int i_rep;
 #endif
   
 public:
 #ifdef __MPI
-  SimpleMD(MPI_Comm comm, int color){
+  SimpleMD(MPI_Comm comm, MPI_Comm col_comm, int color){
 #else
   SimpleMD(){
 #endif
@@ -49,6 +49,7 @@ public:
     
 #ifdef __MPI
     MyComm = comm;
+    ColComm = col_comm;
     i_rep = color;
 #endif
     
@@ -749,7 +750,7 @@ public:
       if(partner<0) partner=0;
       if(partner>=nrep) partner=nrep-1;
 
-      // fprintf(stderr, "\tMyWorldID = %d; MyID = %d; partner = %d\n", world_id, MyID, partner);
+      fprintf(stderr, "\tMyWorldID = %d; MyID = %d; partner = %d\n", world_id, MyID, partner);
     }
     
 // eventually, write positions and statistics
@@ -774,12 +775,12 @@ int main(int argc,char*argv[]){
 
 #ifdef __MPI
   int MyID, NPES;
-  MPI_Comm MyComm;
-
+  MPI_Comm RowComm, ColComm;
+  
   MPI_Init(&argc, &argv);
 
   int n_files = argc - 1; // number of input files
-  int color, NewID, NewSize, n_comm;
+  int color, NewID, NewSize, n_comm, col_color;
   
   if(n_files > 1){
         
@@ -788,9 +789,9 @@ int main(int argc,char*argv[]){
 
     n_comm = NPES / n_files;
     
-    if(NPES % n_files != 0){ // or NPES == n_files){
+    if(NPES % n_files != 0 or NPES == n_files or NPES % n_comm != 0){
       if(MyID == 0)
-	printf("\n\tNPES % n_files != 0 or NPES == n_files\n\texit\n\n");
+	printf("\n\tNPES % n_files != 0 or NPES == n_files or  NPES % n_comm != 0\n\texit\n\n");
 
       MPI_Finalize();
       exit(0);
@@ -801,18 +802,22 @@ int main(int argc,char*argv[]){
   
     // color = (MyID / n_comm) % NPES;
     color = MyID / n_comm;
+    col_color = MyID % (NPES / n_comm);
     
-    MPI_Comm_split(MPI_COMM_WORLD, color, MyID, &MyComm);
+    MPI_Comm_split(MPI_COMM_WORLD, color, MyID, &RowComm);
+    MPI_Comm_split(MPI_COMM_WORLD, col_color, MyID, &ColComm);
     
-    MPI_Comm_rank(MyComm, &NewID);
-    MPI_Comm_size(MyComm, &NewSize);
+    MPI_Comm_rank(RowComm, &NewID);
+    MPI_Comm_size(RowComm, &NewSize);
     
     fprintf(stderr, "\tStart with %d of %d and go to %d of %d\n", MyID, NPES, NewID, NewSize); 
   }
-  else
-    MyComm = MPI_COMM_WORLD;
+  else{
+    RowComm = MPI_COMM_WORLD;
+    ColComm = MPI_COMM_WORLD;
+  }
   
-  SimpleMD smd(MyComm,color);
+  SimpleMD smd(RowComm, ColComm, color);
 
   if(argc>1){
     if( argc < 3 )
