@@ -21,7 +21,7 @@ friction=friction\ 0.
 forcecutoff=forcecutoff\ 2
 
 # cutoff for neighbor lists
-listcutoff=listcutoff\ 7
+listcutoff=listcutoff\ 5
 
 # total number of steps
 nstep=nstep\ 1000
