@@ -580,6 +580,7 @@ public:
   MPI_Status Status;
   int MyID, NPES, ReplicaID, ReplicaSize;
   int world_id;
+  
   MPI_Comm_rank(this -> MyComm, &MyID);
   MPI_Comm_size(this -> MyComm, &NPES);
   MPI_Comm_rank(this -> ReplicaComm, &ReplicaID);
@@ -804,6 +805,15 @@ public:
     if((istep+1)%nstat==0)   write_statistics(statfile,istep+1,tstep,natoms,engkin,engconf,engint);
 
   }
+
+#ifdef __MPI
+  if(MyID == 0){
+    FILE* simple_output;
+    simple_output = fopen("simple_output.dat", "a");
+    fprintf(simple_output, "%lg\t%lg\n", temperature, engconf);
+    fclose(simple_output);
+  }
+#endif
 
   write_final_positions(outputfile,natoms,positions,cell,wrapatoms);
 
