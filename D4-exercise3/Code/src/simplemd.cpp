@@ -70,7 +70,8 @@ private:
 	       string& trajfile,
 	       string& statfile,
 	       int&    maxneighbours,
-	       int&    idum)
+	       int&    idum,
+	       int&    exchangestride)
   {
     temperature=1.0;
     tstep=0.005;
@@ -82,6 +83,7 @@ private:
     nstat=1;
     maxneighbours=1000;
     idum=0;
+    exchangestride=10;
     wrapatoms=false;
     statfile="";
     trajfile="";
@@ -122,6 +124,8 @@ private:
 	sscanf(line.c_str(),"%s %lf",buffer,&listcutoff);
       else if(keyword=="nstep")
 	sscanf(line.c_str(),"%s %d",buffer,&nstep);
+      else if(keyword=="exchangestride")
+	sscanf(line.c_str(),"%s %d",buffer,&exchangestride);
       else if(keyword=="nconfig")
 	{
 	  sscanf(line.c_str(),"%s %d %s",buffer,&nconfig,buffer1);
@@ -551,6 +555,7 @@ public:
   int         nstat;             // stride for output of statistics
   int         maxneighbour;      // maximum average number of neighbours per atom
   int         idum;              // seed
+  int         exchangestride;    // rate of trying exchange
   bool        wrapatoms;         // if true, atomic coordinates are written wrapped in minimal cell
   string      inputfile;         // name of file with starting configuration (xyz)
   string      outputfile;        // name of file with final configuration (xyz)
@@ -577,7 +582,7 @@ public:
   read_input(in,temperature,tstep,friction,forcecutoff,
              listcutoff,nstep,nconfig,nstat,
              wrapatoms,inputfile,outputfile,trajfile,statfile,
-             maxneighbour,idum);
+             maxneighbour,idum,exchangestride);
 
 // number of atoms is read from file inputfile
   read_natoms(inputfile,natoms);
@@ -602,6 +607,7 @@ public:
     fprintf(stdout,"%s %s\n","Statistics file                  :",statfile.c_str());
     fprintf(stdout,"%s %d\n","Max average number of neighbours :",maxneighbour);
     fprintf(stdout,"%s %d\n","Seed                             :",idum);
+    fprintf(stdout,"%s %d\n","Exchange Stride                  :",exchangestride);
     fprintf(stdout,"%s %s\n","Are atoms wrapped on output?     :",(wrapatoms?"T":"F"));
 
 #ifdef __MPI    
