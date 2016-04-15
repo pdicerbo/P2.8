@@ -32,8 +32,6 @@ nstep=nstep\ 1000
 ex_st=exchangestride\ 10
 
 # $1 (input value) must to be equal to the number of files that you want to generate
-nrep=nrep\ $1
-
 END=$1
 END=$(($END-1))
 
@@ -72,7 +70,6 @@ do
 	echo $nstat >> $namefile$i
 	echo $idum >> $namefile$i
 	echo $ex_st >> $namefile$i
-	echo $nrep >> $namefile$i
 done
 
 fi

@@ -27,7 +27,7 @@ class SimpleMD
   int write_statistics_last_time_reopened;
   FILE* write_statistics_fp;
 #ifdef __MPI
-  MPI_Comm MyComm, ColComm;
+  MPI_Comm MyComm, ReplicaComm;
   int i_rep;
 #endif
   
@@ -49,7 +49,7 @@ public:
     
 #ifdef __MPI
     MyComm = comm;
-    ColComm = col_comm;
+    ReplicaComm = col_comm;
     i_rep = color;
 #endif
     
@@ -74,8 +74,7 @@ private:
 	       string& statfile,
 	       int&    maxneighbours,
 	       int&    idum,
-	       int&    exchangestride,
-	       int&    nrep)
+	       int&    exchangestride)
   {
     temperature=1.0;
     tstep=0.005;
@@ -130,8 +129,6 @@ private:
 	sscanf(line.c_str(),"%s %d",buffer,&nstep);
       else if(keyword=="exchangestride")
 	sscanf(line.c_str(),"%s %d",buffer,&exchangestride);
-      else if(keyword=="nrep")
-	sscanf(line.c_str(),"%s %d",buffer,&nrep);
       else if(keyword=="nconfig")
 	{
 	  sscanf(line.c_str(),"%s %d %s",buffer,&nconfig,buffer1);
@@ -573,22 +570,23 @@ public:
   
 #ifdef __MPI
 
-  int MyID, NPES, ColID, ColSize;
+  int MyID, NPES, ReplicaID, ReplicaSize;
   int world_id;
   MPI_Comm_rank(this -> MyComm, &MyID);
   MPI_Comm_size(this -> MyComm, &NPES);
-  MPI_Comm_rank(this -> ColComm, &ColID);
-  MPI_Comm_size(this -> ColComm, &ColSize);
+  MPI_Comm_rank(this -> ReplicaComm, &ReplicaID);
+  MPI_Comm_size(this -> ReplicaComm, &ReplicaSize);
   MPI_Comm_rank(MPI_COMM_WORLD, &world_id);
   
   irep = this -> i_rep;
-
+  nrep = ReplicaSize;
+  
 #endif
   
   read_input(in,temperature,tstep,friction,forcecutoff,
              listcutoff,nstep,nconfig,nstat,
              wrapatoms,inputfile,outputfile,trajfile,statfile,
-             maxneighbour,idum,exchangestride,nrep);
+             maxneighbour,idum,exchangestride);
 
 // number of atoms is read from file inputfile
   read_natoms(inputfile,natoms);
@@ -752,7 +750,8 @@ public:
       if(partner<0) partner=0;
       if(partner>=nrep) partner=nrep-1;
 
-      fprintf(stderr, "\tMyWorldID = %d; MyID = %d; partner = %d\n", world_id, MyID, partner);
+      fprintf(stderr, "\tMyWorldID = %d; MyID = %d; RepID = %d, partner = %d\n", world_id, MyID, ReplicaID, partner);
+      
     }
     
 // eventually, write positions and statistics
@@ -777,12 +776,12 @@ int main(int argc,char*argv[]){
 
 #ifdef __MPI
   int MyID, NPES;
-  MPI_Comm RowComm, ColComm;
+  MPI_Comm RowComm, ReplicaComm;
   
   MPI_Init(&argc, &argv);
 
   int n_files = argc - 1; // number of input files
-  int color, NewID, NewSize, n_comm, col_color, ColSize, ColID;
+  int color, NewID, NewSize, n_comm, rep_color, ReplicaSize, ReplicaID;
   
   if(n_files > 1){
         
@@ -799,29 +798,26 @@ int main(int argc,char*argv[]){
       exit(0);
     }
     
-    if(MyID == 0)
-      fprintf(stderr, "\n\n\tn_comm = %d\n\n", n_comm);
-  
     color = MyID / n_comm;
-    col_color = MyID % n_comm;
+    rep_color = MyID % n_comm;
     
     MPI_Comm_split(MPI_COMM_WORLD, color, MyID, &RowComm);
-    MPI_Comm_split(MPI_COMM_WORLD, col_color, MyID, &ColComm);
+    MPI_Comm_split(MPI_COMM_WORLD, rep_color, MyID, &ReplicaComm);
     
     MPI_Comm_rank(RowComm, &NewID);
     MPI_Comm_size(RowComm, &NewSize);
 
-    MPI_Comm_rank(ColComm, &ColID);
-    MPI_Comm_size(ColComm, &ColSize);
+    MPI_Comm_rank(ReplicaComm, &ReplicaID);
+    MPI_Comm_size(ReplicaComm, &ReplicaSize);
     
-    fprintf(stderr, "\tStart with %d of %d and go to %d of %d; ColID = %d; ColSize = %d\n", MyID, NPES, NewID, NewSize, ColID, ColSize); 
+    fprintf(stderr, "\tStart with %d of %d and go to %d of %d; ReplicaID = %d; ReplicaSize = %d\n", MyID, NPES, NewID, NewSize, ReplicaID, ReplicaSize); 
   }
   else{
     RowComm = MPI_COMM_WORLD;
-    ColComm = MPI_COMM_WORLD;
+    ReplicaComm = MPI_COMM_WORLD;
   }
   
-  SimpleMD smd(RowComm, ColComm, color);
+  SimpleMD smd(RowComm, ReplicaComm, color);
 
   if(argc>1){
     if( argc < 3 )
