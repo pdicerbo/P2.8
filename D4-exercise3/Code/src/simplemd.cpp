@@ -573,10 +573,12 @@ public:
   
 #ifdef __MPI
 
-  int MyID, NPES;
+  int MyID, NPES, ColID, ColSize;
   int world_id;
   MPI_Comm_rank(this -> MyComm, &MyID);
   MPI_Comm_size(this -> MyComm, &NPES);
+  MPI_Comm_rank(this -> ColComm, &ColID);
+  MPI_Comm_size(this -> ColComm, &ColSize);
   MPI_Comm_rank(MPI_COMM_WORLD, &world_id);
   
   irep = this -> i_rep;
@@ -780,7 +782,7 @@ int main(int argc,char*argv[]){
   MPI_Init(&argc, &argv);
 
   int n_files = argc - 1; // number of input files
-  int color, NewID, NewSize, n_comm, col_color;
+  int color, NewID, NewSize, n_comm, col_color, ColSize, ColID;
   
   if(n_files > 1){
         
@@ -800,17 +802,19 @@ int main(int argc,char*argv[]){
     if(MyID == 0)
       fprintf(stderr, "\n\n\tn_comm = %d\n\n", n_comm);
   
-    // color = (MyID / n_comm) % NPES;
     color = MyID / n_comm;
-    col_color = MyID % (NPES / n_comm);
+    col_color = MyID % n_comm;
     
     MPI_Comm_split(MPI_COMM_WORLD, color, MyID, &RowComm);
     MPI_Comm_split(MPI_COMM_WORLD, col_color, MyID, &ColComm);
     
     MPI_Comm_rank(RowComm, &NewID);
     MPI_Comm_size(RowComm, &NewSize);
+
+    MPI_Comm_rank(ColComm, &ColID);
+    MPI_Comm_size(ColComm, &ColSize);
     
-    fprintf(stderr, "\tStart with %d of %d and go to %d of %d\n", MyID, NPES, NewID, NewSize); 
+    fprintf(stderr, "\tStart with %d of %d and go to %d of %d; ColID = %d; ColSize = %d\n", MyID, NPES, NewID, NewSize, ColID, ColSize); 
   }
   else{
     RowComm = MPI_COMM_WORLD;
