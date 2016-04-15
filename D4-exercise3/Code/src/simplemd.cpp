@@ -28,12 +28,11 @@ class SimpleMD
   FILE* write_statistics_fp;
 #ifdef __MPI
   MPI_Comm MyComm, ReplicaComm;
-  int i_rep;
 #endif
   
 public:
 #ifdef __MPI
-  SimpleMD(MPI_Comm comm, MPI_Comm rep_comm, int color){
+  SimpleMD(MPI_Comm comm, MPI_Comm rep_comm){
 #else
   SimpleMD(){
 #endif
@@ -50,7 +49,6 @@ public:
 #ifdef __MPI
     MyComm = comm;
     ReplicaComm = rep_comm;
-    i_rep = color;
 #endif
     
   }
@@ -246,6 +244,16 @@ void read_natoms(const string & inputfile,int & natoms){
 
    }
  }
+
+ void rescale_velocities(const int natoms, const double T_i, const double T_j, vector<Vector>& velocities){
+
+   double fraction = sqrt(T_i / T_j);
+
+   for(int iatom = 0; iatom < natoms; iatom++)
+     for(int k = 0; k < 3; k++)
+       velocities[iatom][k] *= fraction;
+ };
+
  
  void randomize_velocities(const int natoms,const double temperature,const vector<double>&masses,vector<Vector>& velocities,Random&random){
    // randomize the velocities according to the temperature
@@ -569,7 +577,7 @@ public:
   Random random;                 // random numbers stream
   
 #ifdef __MPI
-
+  MPI_Status Status;
   int MyID, NPES, ReplicaID, ReplicaSize;
   int world_id;
   MPI_Comm_rank(this -> MyComm, &MyID);
@@ -578,7 +586,7 @@ public:
   MPI_Comm_size(this -> ReplicaComm, &ReplicaSize);
   MPI_Comm_rank(MPI_COMM_WORLD, &world_id);
   
-  irep = this -> i_rep;
+  irep = ReplicaID;
   nrep = ReplicaSize;
   
 #endif
@@ -752,11 +760,52 @@ public:
 
       /***
       fprintf(stderr, "\tMyWorldID = %d; MyID = %d; RepID = %d, partner = %d\n",
-	      world_id, MyID, ReplicaID, partner);
+	  world_id, MyID, ReplicaID, partner);
       ***/
-
-      // if(partner != ReplicaID)
       
+      if(partner != ReplicaID){
+
+	double tmp_buf[3];
+	double CheckRand = random.U01();
+	tmp_buf[0] = temperature;
+	tmp_buf[1] = engconf;
+	tmp_buf[2] = CheckRand;
+
+	// fprintf(stderr, "\tMyWorldID = %d; MyID = %d; RepID = %d, partner = %d\n",
+	// 	world_id, MyID, ReplicaID, partner);
+
+	
+	MPI_Sendrecv_replace(tmp_buf, 3, MPI_DOUBLE, partner, MyID, partner,
+			     MyID, this->ReplicaComm, &Status);
+
+	if(ReplicaID > partner)
+	  CheckRand = tmp_buf[3];
+
+	double delta = exp((1./temperature - 1./tmp_buf[0])*(engconf - tmp_buf[1]));
+
+	if(delta >= 1.){
+	  
+	  MPI_Sendrecv_replace(&(positions[0][0]), 3*natoms, MPI_DOUBLE, partner, MyID, partner,
+			       MyID, this->ReplicaComm, &Status);
+
+	  MPI_Sendrecv_replace(&(velocities[0][0]), 3*natoms, MPI_DOUBLE, partner, MyID, partner,
+			       MyID, this->ReplicaComm, &Status);
+
+	  rescale_velocities(natoms, temperature, tmp_buf[0], velocities);
+	  
+	}
+	else if(delta >= CheckRand){
+
+	  MPI_Sendrecv_replace(&(positions[0][0]), 3*natoms, MPI_DOUBLE, partner, 0, partner,
+			       0, this->ReplicaComm, &Status);
+
+	  MPI_Sendrecv_replace(&(velocities[0][0]), 3*natoms, MPI_DOUBLE, partner, 0, partner,
+			       0, this->ReplicaComm, &Status);
+
+	  rescale_velocities(natoms, temperature, tmp_buf[0], velocities);
+
+	}
+      }
     }
     
 // eventually, write positions and statistics
@@ -784,7 +833,7 @@ int main(int argc,char*argv[]){
   MPI_Comm RowComm, ReplicaComm;
   
   MPI_Init(&argc, &argv);
-
+  
   int n_files = argc - 1; // number of input files
   int color, NewID, NewSize, n_comm, rep_color, ReplicaSize, ReplicaID;
   
@@ -795,9 +844,10 @@ int main(int argc,char*argv[]){
 
     n_comm = NPES / n_files;
     
-    if(NPES % n_files != 0 or NPES == n_files or NPES % n_comm != 0){
+    if(NPES % n_files != 0 or NPES % n_comm != 0){
       if(MyID == 0)
-	printf("\n\tNPES % n_files != 0 or NPES == n_files or  NPES % n_comm != 0\n\texit\n\n");
+	cerr << "\n\tNPES % n_files != 0 or  NPES % n_comm != 0\n\texit\n\n" << endl;
+      // fprintf(stderr, "\n\tNPES % n_files != 0 or NPES == n_files or  NPES % n_comm != 0\n\texit\n\n");
 
       MPI_Finalize();
       exit(0);
@@ -822,7 +872,7 @@ int main(int argc,char*argv[]){
     ReplicaComm = MPI_COMM_WORLD;
   }
   
-  SimpleMD smd(RowComm, ReplicaComm, color);
+  SimpleMD smd(RowComm, ReplicaComm);
 
   if(argc>1){
     if( argc < 3 )
