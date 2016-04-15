@@ -758,11 +758,6 @@ public:
       if(partner<0) partner=0;
       if(partner>=nrep) partner=nrep-1;
 
-      /***
-      fprintf(stderr, "\tMyWorldID = %d; MyID = %d; RepID = %d, partner = %d\n",
-	  world_id, MyID, ReplicaID, partner);
-      ***/
-      
       if(partner != ReplicaID){
 
 	double tmp_buf[3];
@@ -771,18 +766,14 @@ public:
 	tmp_buf[1] = engconf;
 	tmp_buf[2] = CheckRand;
 
-	// fprintf(stderr, "\tMyWorldID = %d; MyID = %d; RepID = %d, partner = %d\n",
-	// 	world_id, MyID, ReplicaID, partner);
-
-	
 	MPI_Sendrecv_replace(tmp_buf, 3, MPI_DOUBLE, partner, MyID, partner,
 			     MyID, this->ReplicaComm, &Status);
 
 	if(ReplicaID > partner)
-	  CheckRand = tmp_buf[3];
+	  CheckRand = tmp_buf[2];
 
 	double delta = exp((1./temperature - 1./tmp_buf[0])*(engconf - tmp_buf[1]));
-
+	
 	if(delta >= 1.){
 	  
 	  MPI_Sendrecv_replace(&(positions[0][0]), 3*natoms, MPI_DOUBLE, partner, MyID, partner,
@@ -796,11 +787,11 @@ public:
 	}
 	else if(delta >= CheckRand){
 
-	  MPI_Sendrecv_replace(&(positions[0][0]), 3*natoms, MPI_DOUBLE, partner, 0, partner,
-			       0, this->ReplicaComm, &Status);
+	  MPI_Sendrecv_replace(&(positions[0][0]), 3*natoms, MPI_DOUBLE, partner, MyID, partner,
+			       MyID, this->ReplicaComm, &Status);
 
-	  MPI_Sendrecv_replace(&(velocities[0][0]), 3*natoms, MPI_DOUBLE, partner, 0, partner,
-			       0, this->ReplicaComm, &Status);
+	  MPI_Sendrecv_replace(&(velocities[0][0]), 3*natoms, MPI_DOUBLE, partner, MyID, partner,
+			       MyID, this->ReplicaComm, &Status);
 
 	  rescale_velocities(natoms, temperature, tmp_buf[0], velocities);
 
