@@ -28,11 +28,12 @@ class SimpleMD
   FILE* write_statistics_fp;
 #ifdef __MPI
   MPI_Comm MyComm;
+  int i_rep;
 #endif
   
 public:
 #ifdef __MPI
-  SimpleMD(MPI_Comm comm){
+  SimpleMD(MPI_Comm comm, int color){
 #else
   SimpleMD(){
 #endif
@@ -48,6 +49,7 @@ public:
     
 #ifdef __MPI
     MyComm = comm;
+    i_rep = color;
 #endif
     
   }
@@ -71,7 +73,8 @@ private:
 	       string& statfile,
 	       int&    maxneighbours,
 	       int&    idum,
-	       int&    exchangestride)
+	       int&    exchangestride,
+	       int&    nrep)
   {
     temperature=1.0;
     tstep=0.005;
@@ -126,6 +129,8 @@ private:
 	sscanf(line.c_str(),"%s %d",buffer,&nstep);
       else if(keyword=="exchangestride")
 	sscanf(line.c_str(),"%s %d",buffer,&exchangestride);
+      else if(keyword=="nrep")
+	sscanf(line.c_str(),"%s %d",buffer,&nrep);
       else if(keyword=="nconfig")
 	{
 	  sscanf(line.c_str(),"%s %d %s",buffer,&nconfig,buffer1);
@@ -517,7 +522,7 @@ void write_statistics(const string & statfile,const int istep,const double tstep
 
 
 public:
-  int main(FILE*in,FILE*out){
+ int main(FILE*in,FILE*out){
   int            natoms;       // number of atoms
   vector<Vector> positions;    // atomic positions
   vector<Vector> velocities;   // velocities
@@ -548,6 +553,8 @@ public:
   int         maxneighbour;      // maximum average number of neighbours per atom
   int         idum;              // seed
   int         exchangestride;    // rate of trying exchange
+  int         irep;              // my replica ID
+  int         nrep;              // number of replicas
   bool        wrapatoms;         // if true, atomic coordinates are written wrapped in minimal cell
   string      inputfile;         // name of file with starting configuration (xyz)
   string      outputfile;        // name of file with final configuration (xyz)
@@ -566,15 +573,19 @@ public:
 #ifdef __MPI
 
   int MyID, NPES;
+  int world_id;
   MPI_Comm_rank(this -> MyComm, &MyID);
   MPI_Comm_size(this -> MyComm, &NPES);
+  MPI_Comm_rank(MPI_COMM_WORLD, &world_id);
+  
+  irep = this -> i_rep;
 
 #endif
   
   read_input(in,temperature,tstep,friction,forcecutoff,
              listcutoff,nstep,nconfig,nstat,
              wrapatoms,inputfile,outputfile,trajfile,statfile,
-             maxneighbour,idum,exchangestride);
+             maxneighbour,idum,exchangestride,nrep);
 
 // number of atoms is read from file inputfile
   read_natoms(inputfile,natoms);
@@ -600,6 +611,7 @@ public:
     fprintf(stdout,"%s %d\n","Max average number of neighbours :",maxneighbour);
     fprintf(stdout,"%s %d\n","Seed                             :",idum);
     fprintf(stdout,"%s %d\n","Exchange Stride                  :",exchangestride);
+    fprintf(stdout,"%s %d\n","Number of replicas               :",nrep);
     fprintf(stdout,"%s %s\n","Are atoms wrapped on output?     :",(wrapatoms?"T":"F"));
 
 #ifdef __MPI    
@@ -729,8 +741,17 @@ public:
     thermostat(natoms,masses,0.5*tstep,friction,temperature,velocities,engint,random);
 
 // kinetic energy is calculated
-  compute_engkin(natoms,masses,velocities,engkin);
+    compute_engkin(natoms,masses,velocities,engkin);
 
+    // exchange section
+    if((istep+1) % exchangestride == 0){
+      int partner = irep+(((istep+1)/exchangestride+irep)%2)*2-1;
+      if(partner<0) partner=0;
+      if(partner>=nrep) partner=nrep-1;
+
+      // fprintf(stderr, "\tMyWorldID = %d; MyID = %d; partner = %d\n", world_id, MyID, partner);
+    }
+    
 // eventually, write positions and statistics
     if((istep+1)%nconfig==0) write_positions(trajfile,natoms,positions,cell,wrapatoms);
     if((istep+1)%nstat==0)   write_statistics(statfile,istep+1,tstep,natoms,engkin,engconf,engint);
@@ -757,17 +778,19 @@ int main(int argc,char*argv[]){
 
   MPI_Init(&argc, &argv);
 
-  int n_comm = argc - 1; // number of communicators
-  int color, NewID, NewSize;
+  int n_files = argc - 1; // number of input files
+  int color, NewID, NewSize, n_comm;
   
-  if(n_comm > 1){
+  if(n_files > 1){
         
     MPI_Comm_rank(MPI_COMM_WORLD, &MyID);
     MPI_Comm_size(MPI_COMM_WORLD, &NPES);
 
-    if(NPES % n_comm != 0 or NPES == n_comm){
+    n_comm = NPES / n_files;
+    
+    if(NPES % n_files != 0){ // or NPES == n_files){
       if(MyID == 0)
-	printf("\n\tNPES % n_comm != 0 or NPES == n_comm\n\texit\n\n");
+	printf("\n\tNPES % n_files != 0 or NPES == n_files\n\texit\n\n");
 
       MPI_Finalize();
       exit(0);
@@ -789,7 +812,7 @@ int main(int argc,char*argv[]){
   else
     MyComm = MPI_COMM_WORLD;
   
-  SimpleMD smd(MyComm);
+  SimpleMD smd(MyComm,color);
 
   if(argc>1){
     if( argc < 3 )
