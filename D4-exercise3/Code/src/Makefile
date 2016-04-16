@@ -1,12 +1,8 @@
-CC = g++
+CC = mpic++ #g++
 SOURCE=simplemd.cpp Vector.cpp Random.cpp
 CXXFLAGS=
 
 all: simplemd.x
-
-# parallel: CXXFLAGS += -D__MPI
-parallel: CC = mpic++
-parallel: simplemd.x
 
 simplemd.x: $(SOURCE)
 	$(CC) $(SOURCE) $(CXXFLAGS) -O -o simplemd.x
