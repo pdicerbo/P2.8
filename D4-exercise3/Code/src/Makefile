@@ -4,7 +4,7 @@ CXXFLAGS=
 
 all: simplemd.x
 
-parallel: CXXFLAGS += -D__MPI
+# parallel: CXXFLAGS += -D__MPI
 parallel: CC = mpic++
 parallel: simplemd.x
 

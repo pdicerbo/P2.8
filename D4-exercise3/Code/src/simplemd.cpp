@@ -6,10 +6,7 @@
 #include <cmath>
 #include <vector>
 #include <cstdlib>
-
-#ifdef __MPI
 #include "mpi.h"
-#endif
 
 using namespace std;
 using namespace PLMD;
@@ -26,16 +23,10 @@ class SimpleMD
   bool write_statistics_first;
   int write_statistics_last_time_reopened;
   FILE* write_statistics_fp;
-#ifdef __MPI
   MPI_Comm MyComm, ReplicaComm;
-#endif
   
 public:
-#ifdef __MPI
   SimpleMD(MPI_Comm comm, MPI_Comm rep_comm){
-#else
-  SimpleMD(){
-#endif
 
     for(int i=0;i<32;i++) iv[i]=0.0;
     iy=0;
@@ -44,13 +35,9 @@ public:
     write_positions_first=true;
     write_statistics_first=true;
     write_statistics_last_time_reopened=0;
-    write_statistics_fp=NULL;
-    
-#ifdef __MPI
+    write_statistics_fp=NULL;  
     MyComm = comm;
     ReplicaComm = rep_comm;
-#endif
-    
   }
   
 private:
@@ -92,11 +79,8 @@ private:
     inputfile="";
     
     string line;
-    
-#ifdef __MPI
     int MyID;
     MPI_Comm_rank( this->MyComm, &MyID);
-#endif
     
     line.resize(256);
     char buffer[256];
@@ -131,19 +115,15 @@ private:
 	{
 	  sscanf(line.c_str(),"%s %d %s",buffer,&nconfig,buffer1);
 	  trajfile=buffer1;
-#ifdef __MPI
 	  if(MyID > 0)
 	    trajfile = "/dev/null";
-#endif
 	}
       else if(keyword=="nstat")
 	{
       sscanf(line.c_str(),"%s %d %s",buffer,&nstat,buffer1);
       statfile=buffer1;
-#ifdef __MPI
       if(MyID > 0)
 	statfile = "/dev/null";
-#endif
 	}
       else if(keyword=="wrapatoms")
 	{
@@ -295,15 +275,11 @@ void compute_list(const int natoms,const vector<Vector>& positions,const double 
   Vector distance_pbc; // minimum-image distance of the two atoms
   double listcutoff2;  // squared list cutoff
 
-#ifdef __MPI
-
   int MyID, NPES;
   MPI_Comm comm = this -> MyComm;
   
   MPI_Comm_size(comm, &NPES);
   MPI_Comm_rank(comm, &MyID);
-
-#endif
   
   listcutoff2=listcutoff*listcutoff;
   list.assign(natoms,vector<int>());
@@ -311,23 +287,21 @@ void compute_list(const int natoms,const vector<Vector>& positions,const double 
   double l1 = cell[0] / M[0];
   double l2 = cell[1] / M[1];
   double l3 = cell[2] / M[2];
-
+  
   // loop over all cells
   for(int i1 = 0; i1 < M[0]; i1++){
     for(int i2 = 0; i2 < M[1]; i2++){
       for(int i3 = 0; i3 < M[2]; i3++){
-
+	
 	int cell_index = index_func(i1, i2, i3, M);
-
-#ifdef __MPI
+	
 	// Round robin assignment of cells
 	if(( cell_index + MyID) % NPES != 0)
 	  continue;
-#endif
 	
 	for(int MyAtom = 0; MyAtom < subcells[cell_index].size(); MyAtom++){
 	  int iatom = subcells[cell_index][MyAtom];
-
+	  
 	  // loop over neighbours cells
 	  for(int ix = -1; ix <= 1; ix++){
 	    for(int iy = -1; iy <= 1; iy++){
@@ -377,13 +351,11 @@ void compute_forces(const int natoms,const vector<Vector>& positions,const doubl
   Vector f;               // force
   double engcorrection;   // energy necessary shift the potential avoiding discontinuities
 
-#ifdef __MPI
   int MyID, NPES;
   MPI_Comm comm = this -> MyComm;
   
   MPI_Comm_size(comm, &NPES);
   MPI_Comm_rank(comm, &MyID);
-#endif
   
   forcecutoff2=forcecutoff*forcecutoff;
   engconf=0.0;
@@ -431,11 +403,8 @@ void compute_forces(const int natoms,const vector<Vector>& positions,const doubl
     }
   }
   
-#ifdef __MPI  
   MPI_Allreduce(MPI_IN_PLACE, &(forces[0][0]), 3 * natoms, MPI_DOUBLE, MPI_SUM, comm);
   MPI_Allreduce(MPI_IN_PLACE, &engconf, 1, MPI_DOUBLE, MPI_SUM, comm);
-#endif
-  
 }
 
 void compute_engkin(const int natoms,const vector<double>& masses,const vector<Vector>& velocities,double & engkin)
@@ -576,7 +545,6 @@ public:
 
   Random random;                 // random numbers stream
   
-#ifdef __MPI
   MPI_Status Status;
   double mean_energy = 0;
   int MyID, NPES, ReplicaID, ReplicaSize;
@@ -591,8 +559,6 @@ public:
   irep = ReplicaID;
   nrep = ReplicaSize;
   
-#endif
-  
   read_input(in,temperature,tstep,friction,forcecutoff,
              listcutoff,nstep,nconfig,nstat,
              wrapatoms,inputfile,outputfile,trajfile,statfile,
@@ -601,10 +567,7 @@ public:
 // number of atoms is read from file inputfile
   read_natoms(inputfile,natoms);
 
-#ifdef __MPI
   if(MyID == 0){
-#endif
-
     // write the parameters in output so they can be checked
     fprintf(stdout,"%s %s\n","Starting configuration           :",inputfile.c_str());
     fprintf(stdout,"%s %s\n","Final configuration              :",outputfile.c_str());
@@ -624,10 +587,8 @@ public:
     fprintf(stdout,"%s %d\n","Exchange Stride                  :",exchangestride);
     fprintf(stdout,"%s %d\n","Number of replicas               :",nrep);
     fprintf(stdout,"%s %s\n","Are atoms wrapped on output?     :",(wrapatoms?"T":"F"));
-
-#ifdef __MPI    
   }
-#endif
+
   // Setting the seed
   random.setSeed(idum);
 
@@ -662,7 +623,6 @@ public:
     nsubcells *= M[k];    
   }
 
-#ifdef __MPI
   if(nsubcells < NPES){
     
     if(MyID == 0)
@@ -673,7 +633,6 @@ public:
     
     exit(0);
   }
-#endif
   
   subcells.resize(nsubcells);
   assign_cells(natoms, positions, M, subcells, cell);
@@ -685,12 +644,8 @@ public:
   int list_size=0;
   for(int i=0;i<list.size();i++) list_size+=list[i].size();
 
-#ifdef __MPI
   if(MyID == 0)
     fprintf(stdout,"List size: %d\n",list_size);
-#else
-    fprintf(stdout,"List size: %d\n",list_size);
-#endif
   
   for(int iatom=0;iatom<natoms;++iatom) for(int k=0;k<3;++k) positions0[iatom][k]=positions[iatom][k];
 
@@ -726,21 +681,14 @@ public:
       
       for(int iatom=0;iatom<natoms;++iatom) for(int k=0;k<3;++k) positions0[iatom][k]=positions[iatom][k];
 
-#ifdef __MPI      
       if(MyID == 0)
 	fprintf(stdout,"Neighbour list recomputed at step %d\n",istep);
-#else
-      fprintf(stdout,"Neighbour list recomputed at step %d\n",istep);
-#endif
+
       int list_size=0;
       for(int i=0;i<list.size();i++) list_size+=list[i].size();
 
-#ifdef __MPI      
       if(MyID == 0)
 	fprintf(stdout,"List size: %d\n",list_size);
-#else
-      fprintf(stdout,"List size: %d\n",list_size);
-#endif
       
     }
 
@@ -809,14 +757,12 @@ public:
 
   }
 
-#ifdef __MPI
   if(MyID == 0){
     FILE* simple_output;
     simple_output = fopen("simple_output.dat", "a");
     fprintf(simple_output, "%lg\t%lg\n", temperature, mean_energy / nstep);
     fclose(simple_output);
   }
-#endif
 
   write_final_positions(outputfile,natoms,positions,cell,wrapatoms);
 
@@ -832,7 +778,6 @@ public:
 int main(int argc,char*argv[]){
   FILE* in=stdin;
 
-#ifdef __MPI
   int MyID, NPES;
   MPI_Comm RowComm, ReplicaComm;
   
@@ -851,7 +796,6 @@ int main(int argc,char*argv[]){
     if(NPES % n_files != 0 or NPES % n_comm != 0){
       if(MyID == 0)
 	cerr << "\n\tNPES % n_files != 0 or  NPES % n_comm != 0\n\texit\n\n" << endl;
-      // fprintf(stderr, "\n\tNPES % n_files != 0 or NPES == n_files or  NPES % n_comm != 0\n\texit\n\n");
 
       MPI_Finalize();
       exit(0);
@@ -869,7 +813,8 @@ int main(int argc,char*argv[]){
     MPI_Comm_rank(ReplicaComm, &ReplicaID);
     MPI_Comm_size(ReplicaComm, &ReplicaSize);
     
-    fprintf(stderr, "\tStart with %d of %d and go to %d of %d; ReplicaID = %d; ReplicaSize = %d\n", MyID, NPES, NewID, NewSize, ReplicaID, ReplicaSize); 
+    fprintf(stderr, "\tStart with %d of %d and go to %d of %d; ReplicaID = %d; ReplicaSize = %d\n",
+	    MyID, NPES, NewID, NewSize, ReplicaID, ReplicaSize); 
   }
   else{
     RowComm = MPI_COMM_WORLD;
@@ -890,16 +835,6 @@ int main(int argc,char*argv[]){
     fclose(in);
 
   MPI_Finalize();
-
-#else
-
-  SimpleMD smd;
-
-  if(argc>1) in=fopen(argv[1],"r");
-  int r = smd.main(in,stdout);
-  if(argc>1) fclose(in);
-
-#endif
 
   return 0;
 }
