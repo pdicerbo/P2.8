@@ -37,7 +37,7 @@ plt.figure()
 plt.plot(temperature, mean_energy, "-o")
 plt.xlabel("T")
 plt.ylabel("Mean Energy")
-plt.xlim((.8,1.6))
+plt.xlim((.95,1.55))
 
 # plt.show()
 plt.savefig("mean_energy.png")
