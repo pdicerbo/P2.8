@@ -546,7 +546,6 @@ public:
   Random random;                 // random numbers stream
   
   MPI_Status Status;
-  double mean_energy = 0;
   int MyID, NPES, ReplicaID, ReplicaSize;
   int world_id;
   
@@ -753,15 +752,6 @@ public:
     if((istep+1)%nconfig==0) write_positions(trajfile,natoms,positions,cell,wrapatoms);
     if((istep+1)%nstat==0)   write_statistics(statfile,istep+1,tstep,natoms,engkin,engconf,engint);
 
-    mean_energy += engconf;
-
-  }
-
-  if(MyID == 0){
-    FILE* simple_output;
-    simple_output = fopen("simple_output.dat", "a");
-    fprintf(simple_output, "%lg\t%lg\n", temperature, mean_energy / nstep);
-    fclose(simple_output);
   }
 
   write_final_positions(outputfile,natoms,positions,cell,wrapatoms);
