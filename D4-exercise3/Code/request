@@ -10,9 +10,9 @@ module load openmpi/1.8.3/gnu/4.9.2
 
 cd $PBS_O_WORKDIR
 
-if [ -f simple_output.dat ]
-then
-    rm simple_output.dat
-fi
+# if [ -f simple_output.dat ]
+# then
+#     rm simple_output.dat
+# fi
 
-mpirun -np 10 src/simplemd.x in0 in1 in2 in3 in4 in5 in6 in7 in8 in9
+mpirun -np 16 src/simplemd.x in0 in1 in2 in3 in4 in5 in6 in7 in8 in9 in10 in11 in12 in13 in14 in15
