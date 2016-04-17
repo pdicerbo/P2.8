@@ -1,0 +1,18 @@
+#!/bin/bash
+
+#PBS -N mol_din
+#PBS -l walltime=00:35:00
+#PBS -l nodes=1:ppn=20
+
+module load openmpi/1.8.3/gnu/4.9.2
+
+cd $PBS_O_WORKDIR
+
+for NP in 1 2 4 8 16 20
+do
+
+    /usr/bin/time -p mpirun -np $NP src/simplemd.x in 2>> timing.dat
+
+done
+
+cat timing.dat | grep real | awk '{print $2}' > timing_def.dat

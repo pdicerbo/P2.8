@@ -9,7 +9,7 @@ parallel: CC = mpic++
 parallel: simplemd.x
 
 simplemd.x: $(SOURCE)
-	$(CC) $(SOURCE) $(CXXFLAGS) -O -o simplemd.x
+	$(CC) $(SOURCE) $(CXXFLAGS) -O3 -o simplemd.x
 
 clean:
 	rm -f simplemd.x *.o

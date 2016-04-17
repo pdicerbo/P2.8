@@ -9,12 +9,12 @@ tstep 0.005
 # friction coefficient (Langevin thermostat)
 friction 0. #1.0
 # cutoff for forces
-forcecutoff 2
+forcecutoff 2.5
 # cutoff for neighbor lists
-listcutoff  3
+listcutoff  5
 # total number of steps
 nstep 1000
 # stride for writing trajectory
-nconfig 10 trajectory.xyz
+nconfig 1001 trajectory.xyz
 # stride for writing energy file
-nstat   10 energies.dat
+nstat   1001 energies.dat

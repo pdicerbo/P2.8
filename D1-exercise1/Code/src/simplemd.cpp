@@ -577,7 +577,8 @@ public:
 
   }
 
-  write_final_positions(outputfile,natoms,positions,cell,wrapatoms);
+  // comment the following line for benchmarking
+  // write_final_positions(outputfile,natoms,positions,cell,wrapatoms);
 
 // close the statistic file if it was open:
   if(write_statistics_fp) fclose(write_statistics_fp);

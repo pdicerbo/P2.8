@@ -273,13 +273,15 @@ void check_list(const int natoms,const vector<Vector>& positions,const vector<Ve
   }
 }
 
-#ifdef __MPI
-void compute_list(const int natoms,const vector<Vector>& positions,const double cell[3],const double listcutoff,
-                  vector<vector<int> >& list, const vector<vector<int> >& subcells, const int M[3], MPI_Comm comm){
-#else
+// #ifdef __MPI
+// void compute_list(const int natoms,const vector<Vector>& positions,const double cell[3],const double listcutoff,
+//                   vector<vector<int> >& list, const vector<vector<int> >& subcells, const int M[3], MPI_Comm comm){
+// #else
+
 void compute_list(const int natoms,const vector<Vector>& positions,const double cell[3],const double listcutoff,
                   vector<vector<int> >& list, const vector<vector<int> >& subcells, const int M[3]){
-#endif
+
+  // #endif
 
   Vector distance;     // distance of the two atoms
   Vector distance_pbc; // minimum-image distance of the two atoms
@@ -288,7 +290,7 @@ void compute_list(const int natoms,const vector<Vector>& positions,const double 
 #ifdef __MPI
 
   int MyID, NPES;
-
+  MPI_Comm comm = this -> MyComm;
   MPI_Comm_size(comm, &NPES);
   MPI_Comm_rank(comm, &MyID);
 
@@ -356,13 +358,13 @@ void compute_list(const int natoms,const vector<Vector>& positions,const double 
   }
 }
  
-#ifdef __MPI
-void compute_forces(const int natoms,const vector<Vector>& positions,const double cell[3],
-                    double forcecutoff,const vector<vector<int> >& list,vector<Vector>& forces,double & engconf, MPI_Comm comm)
-#else
+// #ifdef __MPI
+// void compute_forces(const int natoms,const vector<Vector>& positions,const double cell[3],
+//                     double forcecutoff,const vector<vector<int> >& list,vector<Vector>& forces,double & engconf, MPI_Comm comm)
+// #else
 void compute_forces(const int natoms,const vector<Vector>& positions,const double cell[3],
                     double forcecutoff,const vector<vector<int> >& list,vector<Vector>& forces,double & engconf)
-#endif
+// #endif
 {
   Vector distance;        // distance of the two atoms
   Vector distance_pbc;    // minimum-image distance of the two atoms
@@ -373,6 +375,7 @@ void compute_forces(const int natoms,const vector<Vector>& positions,const doubl
 
 #ifdef __MPI
   int MyID, NPES;
+  MPI_Comm comm = this -> MyComm;
 
   MPI_Comm_size(comm, &NPES);
   MPI_Comm_rank(comm, &MyID);
@@ -662,11 +665,11 @@ public:
   randomize_velocities(natoms,temperature,masses,velocities,random);
 
 // neighbour list are computed, and reference positions are saved
-#ifdef __MPI
-  compute_list(natoms,positions,cell,listcutoff,list, subcells, M, this->MyComm);
-#else
+// #ifdef __MPI
+//   compute_list(natoms,positions,cell,listcutoff,list, subcells, M, this->MyComm);
+// #else
   compute_list(natoms,positions,cell,listcutoff,list, subcells, M);
-#endif
+// #endif
   
   int list_size=0;
   for(int i=0;i<list.size();i++) list_size+=list[i].size();
@@ -681,11 +684,11 @@ public:
   for(int iatom=0;iatom<natoms;++iatom) for(int k=0;k<3;++k) positions0[iatom][k]=positions[iatom][k];
 
 // forces are computed before starting md
-#ifdef __MPI
-  compute_forces(natoms,positions,cell,forcecutoff,list,forces,engconf, this -> MyComm);
-#else
+// #ifdef __MPI
+//   compute_forces(natoms,positions,cell,forcecutoff,list,forces,engconf, this -> MyComm);
+// #else
   compute_forces(natoms,positions,cell,forcecutoff,list,forces,engconf);
-#endif
+  // #endif
   
 // here is the main md loop
 // Langevin thermostat is applied before and after a velocity-Verlet integrator
@@ -713,11 +716,11 @@ public:
 
       assign_cells(natoms, positions, M, subcells, cell);
 
-#ifdef __MPI
-      compute_list(natoms,positions,cell,listcutoff,list, subcells, M, this->MyComm);
-#else
+// #ifdef __MPI
+//       compute_list(natoms,positions,cell,listcutoff,list, subcells, M, this->MyComm);
+// #else
       compute_list(natoms,positions,cell,listcutoff,list, subcells, M);
-#endif
+      // #endif
       
       for(int iatom=0;iatom<natoms;++iatom) for(int k=0;k<3;++k) positions0[iatom][k]=positions[iatom][k];
 
@@ -739,11 +742,11 @@ public:
       
     }
 
-#ifdef __MPI
-    compute_forces(natoms,positions,cell,forcecutoff,list,forces,engconf, this->MyComm);
-#else
+// #ifdef __MPI
+//     compute_forces(natoms,positions,cell,forcecutoff,list,forces,engconf, this->MyComm);
+// #else
     compute_forces(natoms,positions,cell,forcecutoff,list,forces,engconf);
-#endif
+    //#endif
     
     for(int iatom=0;iatom<natoms;iatom++) for(int k=0;k<3;k++)
       velocities[iatom][k]+=forces[iatom][k]*0.5*tstep/masses[iatom];
@@ -758,8 +761,8 @@ public:
     if((istep+1)%nstat==0)   write_statistics(statfile,istep+1,tstep,natoms,engkin,engconf,engint);
 
   }
-
-  write_final_positions(outputfile,natoms,positions,cell,wrapatoms);
+  // comment the following line for benchmarking
+  // write_final_positions(outputfile,natoms,positions,cell,wrapatoms);
 
 // close the statistic file if it was open:
   if(write_statistics_fp) fclose(write_statistics_fp);
