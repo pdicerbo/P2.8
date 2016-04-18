@@ -1,4 +1,4 @@
-D2-Code
+D1-Assignment
 =============
 
 In the "src/simplemd.cpp" file there is the parallelization of the starting code. Typing **make**

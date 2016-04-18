@@ -1,4 +1,4 @@
-D2-Code
+D2-Assignment
 =============
 
 In the "src/simplemd.cpp" file there is the implementation of the **linked cells**. Typing **make** produces
